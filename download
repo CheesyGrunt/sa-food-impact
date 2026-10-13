@@ -1,0 +1,7 @@
+# Raw Salesforce exports have client names, addresses and emails. Never commit them.
+*.xls
+*.xlsx
+*.csv
+reports/
+node_modules/
+.DS_Store

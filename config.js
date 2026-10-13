@@ -1,6 +1,6 @@
 // Community Support Program Numbers - settings. Edit these in GitHub's web editor; Render redeploys on save.
 window.GREAT_HALL_CONFIG = {
-  year: 2026,                 // only sessions dated in this year are counted
+  year: 'auto',               // 'auto' = the year of the newest session in the reports. Put a number (like 2026) to pin a year.
   householdCap: 20,           // household sizes above this are treated as data-entry errors and left out of people totals
 
   // Salesforce reports, shown in the Kitchens with an "Open all reports" button.

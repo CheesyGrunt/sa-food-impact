@@ -19,6 +19,7 @@
     <div class="mast-actions">
       <a class="btn ghost" href="index.html">Back to the dashboard</a>
       <a class="btn ghost hidden" id="pwLink" href="passwords.html">Change passwords</a>
+      <a class="hidden" id="signOut" href="#" style="font-size:15px">Sign out</a>
     </div>
   </div>
   <hr class="rule">
@@ -28,11 +29,12 @@
 <main class="wrap gate" id="gate">
   <div class="card">
     <div class="seal">SA</div>
-    <h2 id="gateTitle">Password?</h2>
-    <p class="lede" style="margin:0" id="gateSub">The Kitchens are admin only.</p>
+    <h2 id="gateTitle">Admin sign in</h2>
+    <p class="lede" style="margin:0" id="gateSub">Use the admin password you already set. Nothing gets reset here.</p>
     <form id="gateForm" autocomplete="off">
       <input type="password" id="adminPass" placeholder="Admin password" aria-label="Admin password">
-      <button type="submit">Come in</button>
+      <label style="font-size:15px;text-align:left"><input type="checkbox" id="keepIn" checked> Keep me signed in on this computer</label>
+      <button type="submit">Sign in</button>
     </form>
     <!-- first-time setup -->
     <form id="setupForm" class="hidden" autocomplete="off" style="text-align:left">
