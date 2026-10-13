@@ -74,7 +74,6 @@
 
   function checkPair(a, b, label) {
     if (!a) throw new Error('Enter the ' + label + '.');
-    if (a.length < 8) throw new Error('The ' + label + ' needs at least 8 characters.');
     if (a !== b) throw new Error('The two ' + label + ' boxes do not match.');
     return a;
   }
