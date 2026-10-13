@@ -10,9 +10,22 @@
   var admin = null, viewer = null, setupMode = false;
 
   // ---------- gate ----------
-  var keysBox = null;
-  A.getJSON(A.PATHS.keys).then(function (k) {
+  var keysBox = null, SAVED = 'cspn.admin';
+  function savedAdmin() { try { return localStorage.getItem(SAVED); } catch (e) { return null; } }
+  Promise.all([A.getJSON(A.PATHS.keys), A.getJSON(A.PATHS.hall)]).then(function (res) {
+    var k = res[0];
     keysBox = k;
+    if (!k && res[1]) {
+      // data is live but the keyring is missing: never offer a fresh setup over real data
+      $('gateTitle').textContent = 'Keyring missing';
+      $('gateSub').textContent = 'The data is published but data/keys.enc.json is not in GitHub. Upload it to the data folder (from your last download) and refresh.';
+      $('gateForm').classList.add('hidden');
+      return;
+    }
+    if (k) {
+      var s = savedAdmin();
+      if (s) return GreatHall.unseal(k, s).then(function (kk) { admin = s; viewer = kk.viewer; enter(); }).catch(function () { try { localStorage.removeItem(SAVED); } catch (e) {} $('adminPass').focus(); });
+    }
     if (!k) {
       setupMode = true;
       $('gateTitle').textContent = 'First-time setup';
@@ -24,7 +37,11 @@
     e.preventDefault();
     var p = $('adminPass').value; if (!p || !keysBox) return;
     $('gateMsg').textContent = 'Checking...';
-    GreatHall.unseal(keysBox, p).then(function (k) { admin = p; viewer = k.viewer; enter(); })
+    GreatHall.unseal(keysBox, p).then(function (k) {
+      admin = p; viewer = k.viewer;
+      try { if ($('keepIn').checked) localStorage.setItem(SAVED, p); } catch (x) {}
+      enter();
+    })
       .catch(function () { $('gateMsg').textContent = 'That is not the admin password.'; });
   };
   $('setupForm').onsubmit = function (e) {
@@ -38,10 +55,11 @@
   };
   function enter() {
     $('gate').classList.add('hidden'); $('work').classList.remove('hidden');
-    if (!setupMode) $('pwLink').classList.remove('hidden');
+    if (!setupMode) { $('pwLink').classList.remove('hidden'); $('signOut').classList.remove('hidden'); }
     if (A.loadVault()) $('vaultNote').innerHTML = 'A token is saved on this computer. Leave the token box empty and it unlocks with the admin password. <a href="#" id="forget">Forget it</a>';
     drawSlots();
   }
+  $('signOut').onclick = function (e) { e.preventDefault(); try { localStorage.removeItem(SAVED); } catch (x) {} location.reload(); };
   document.addEventListener('click', function (e) { if (e.target.id === 'forget') { e.preventDefault(); A.forgetVault(); $('vaultNote').textContent = 'Saved token removed.'; } });
 
   // ---------- Salesforce report links ----------
@@ -58,6 +76,28 @@
   function markLinks() {
     document.querySelectorAll('#repList .ck').forEach(function (el) { el.innerHTML = reports[el.dataset.slot] ? '&#10003; loaded' : ''; });
   }
+
+  // ---------- recommend a change (opens the user's email, addressed to Cody) ----------
+  $('recReport').innerHTML = '<option value="">Pick one</option>' +
+    (CFG.reports || []).map(function (r) { return '<option>' + esc(r.name) + '</option>'; }).join('') +
+    '<option>The dashboard itself (layout, a chart, a number)</option><option>The Kitchens (this update page)</option><option>Something else</option>';
+  try { $('recName').value = localStorage.getItem('cspn.recName') || ''; } catch (e) {}
+  $('recForm').onsubmit = function (e) {
+    e.preventDefault();
+    var name = $('recName').value.trim(), rep = $('recReport').value, text = $('recText').value.trim();
+    if (!name || !rep || !text) { $('recMsg').textContent = 'Fill in all three boxes first.'; return; }
+    try { localStorage.setItem('cspn.recName', name); } catch (x) {}
+    var subject = 'Program Numbers change request: ' + rep;
+    var body = 'Report: ' + rep + '\n' +
+      'From: ' + name + '\n' +
+      'Sent: ' + new Date().toLocaleString('en-US') + '\n\n' +
+      'Recommended change:\n' + text + '\n\n' +
+      '(Sent from the Kitchens on the Community Support Program Numbers dashboard)';
+    var to = [].concat(CFG.recommendTo || []).join(',');
+    location.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    $('recMsg').textContent = 'Your email should be open with it ready to go. Hit Send there.';
+    $('recText').value = '';
+  };
 
   // ---------- slots ----------
   function drawSlots() {
@@ -140,7 +180,8 @@
       .then(function (t) { token = t; log('Locking everything with the viewer password...'); return files(); })
       .then(function (f) { return A.publish(token, repo, branch, f, 'Program numbers update ' + new Date().toLocaleDateString('en-US'), log); })
       .then(function () {
-        $('token').value = ''; setupMode = false; $('pwLink').classList.remove('hidden');
+        $('token').value = ''; setupMode = false; $('pwLink').classList.remove('hidden'); $('signOut').classList.remove('hidden');
+        try { localStorage.setItem(SAVED, admin); } catch (x) {}
         log('Published. Render redeploys in about a minute, then refresh the dashboard.\nMischief managed.', 'ok');
       })
       .catch(function (e) { log(e.message, 'warn'); })

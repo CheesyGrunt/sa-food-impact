@@ -81,13 +81,13 @@
   }
 
   var SLOTS = [
-    { key: 'pantryValue',    label: 'Pantry Total Value Pounds', hint: '2026 - Pantry Total Value Pounds' },
-    { key: 'mvfdValue',      label: 'MVFD Value Pounds',         hint: '2026 - MVFD Value Pounds' },
-    { key: 'pantryAttended', label: 'Pantry Attended Clients',   hint: '2026 Pantry Attended Clients' },
-    { key: 'mvfdAttended',   label: 'MVFD Attended Clients',     hint: '2026 MVFD Attended Clients' },
-    { key: 'stats',          label: 'MVFD Stats',                hint: '2026- MVFD Stats' },
-    { key: 'pantryStats',    label: 'Pantry Client Stats',       hint: '2026 Pantry Attended Client Stats' },
-    { key: 'community',      label: 'Community Support',         hint: '2026 Community Support' },
+    { key: 'pantryValue',    label: 'Pantry Total Value Pounds', hint: 'Pantry Total Value Pounds' },
+    { key: 'mvfdValue',      label: 'MVFD Value Pounds',         hint: 'MVFD Value Pounds' },
+    { key: 'pantryAttended', label: 'Pantry Attended Clients',   hint: 'Pantry Attended Clients' },
+    { key: 'mvfdAttended',   label: 'MVFD Attended Clients',     hint: 'MVFD Attended Clients' },
+    { key: 'stats',          label: 'MVFD Stats',                hint: 'MVFD Stats' },
+    { key: 'pantryStats',    label: 'Pantry Client Stats',       hint: 'Pantry Attended Client Stats' },
+    { key: 'community',      label: 'Community Support',         hint: 'Community Support' },
     { key: 'inKind',         label: 'In-Kind (optional)',        hint: 'Any report with an in-kind value column' }
   ];
 
@@ -96,7 +96,9 @@
   // opts: { year, householdCap, inKindManual }
   function build(reports, opts) {
     opts = opts || {};
-    var YEAR = +opts.year || new Date().getFullYear();
+    // Year: a number in config.js pins it; 'auto' (or blank) uses the year of the newest session in the Attended reports,
+    // so 2027 reports roll the dashboard to 2027 on their own, and late 2026 reports run in January still count as 2026.
+    var YEAR = +opts.year || autoYear(reports) || new Date().getFullYear();
     var CAP = +opts.householdCap || 20;
     var quality = [];
     var sources = {};
@@ -402,6 +404,18 @@
       quality: quality
     };
     return { summary: summary, roster: roster };
+  }
+
+  function autoYear(reports) {
+    var best = '';
+    ['mvfdAttended', 'pantryAttended'].forEach(function (key) {
+      var r = reports[key]; if (!r) return;
+      var t = table(r.rows, ['full name']);
+      var c = col(t.headers, ['service delivery name', 'service delivery']);
+      if (c < 0) return;
+      t.rows.forEach(function (row) { var d = findDate(row[c]); if (d && d > best) best = d; });
+    });
+    return best ? +best.slice(0, 4) : null;
   }
 
   // Friendlier names for the Community Support columns

@@ -76,7 +76,8 @@
       list('Clients with ' + b, 'Repeat attendance across MVFDs and pantries, most visits first.', function (c) { var t = c.m + c.p; return t >= r[0] && t <= r[1]; }, 'visits');
     });
 
-    monthChart(); siteTable(); sessions(); households(); statusPanel(); community(); notes();
+    monthChart(); siteTable();
+    var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(monthChart, 150); }); sessions(); households(); statusPanel(); community(); notes();
   }
 
   function bindClicks(root, fn) {
@@ -139,7 +140,7 @@
   // ---------- month chart ----------
   function monthChart() {
     var M = S.months; if (!M.length) { $('monthChart').innerHTML = '<p class="empty">No sessions yet.</p>'; return; }
-    var W = 1000, H = 320, pl = 56, pr = 24, pt = 18, pb = 34;
+    var W = Math.max(560, Math.round($('monthChart').clientWidth || 1000)), H = 320, pl = 56, pr = 24, pt = 18, pb = 34;
     var max = Math.max.apply(null, M.map(function (m) { return Math.max(m.mvfdVisits, m.pantryVisits, m.newClients); }));
     var step = Math.pow(10, Math.floor(Math.log10(max || 1))); var top = Math.ceil(max / step) * step; if (top / step < 4) { step /= 2; top = Math.ceil(max / step) * step; }
     var y = function (v) { return pt + (H - pt - pb) * (1 - v / top); };

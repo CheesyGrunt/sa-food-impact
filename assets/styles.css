@@ -206,3 +206,25 @@ footer .wrap { flex-direction: column; justify-content: center; text-align: cent
 .replist li { padding: 6px 0; border-bottom: 1px solid var(--gray-light); break-inside: avoid; display: flex; justify-content: space-between; gap: 10px; font-size: 16px; }
 .replist .ck { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ok); white-space: nowrap; }
 @media (max-width: 720px) { .replist { columns: 1; } }
+
+/* masthead: title left, actions right, on one line when there is room */
+@media (min-width: 761px) {
+  .mast .wrap { flex-wrap: nowrap; align-items: center; }
+  .mast .wrap > div:first-child { min-width: 0; }
+  .mast-actions { flex-shrink: 0; }
+}
+
+/* ---------- use the whole window ---------- */
+.wrap { max-width: 1840px; padding: 0 clamp(16px, 2.6vw, 48px); }
+#csKpis { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+@media (min-width: 1700px) {
+  #kpis { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  #kpis .kpi .value { font-size: clamp(22px, 1.6vw, 30px); }
+  #kpis .kpi .more { position: static; display: block; margin-bottom: 4px; }
+}
+@media (min-width: 1400px) {
+  .tablewrap.scroll { max-height: 640px; }
+}
+@media (min-width: 1700px) { #kpis .kpi.pending .value { font-size: 19px; } #kpis .kpi .note { font-size: 14.5px; } }
+textarea { font-family: 'EB Garamond', serif; font-size: 17px; padding: 10px 12px; border: 1px solid var(--hair); border-radius: 8px; background: #fff; color: var(--ink); width: 100%; resize: vertical; }
+textarea:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
