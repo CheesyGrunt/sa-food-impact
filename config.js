@@ -15,6 +15,9 @@ window.GREAT_HALL_CONFIG = {
     { slot: 'pantryStats',    name: '2026 Pantry Attended Client Stats', url: 'https://soldiersangels.lightning.force.com/lightning/r/Report/00OTR000009ddHF2AY/view?queryScope=userFolders' }
   ],
 
+  // "Recommend a change" in the Kitchens emails all of these addresses
+  recommendTo: ['cmackall@soldiersangels.org', 'cody.a.mackall@gmail.com'],
+
   // Where the Kitchens page publishes updates (your GitHub repo)
   github: {
     owner: 'CheesyGrunt',

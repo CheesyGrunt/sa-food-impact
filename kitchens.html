@@ -17,7 +17,7 @@
       <p class="sub">Drop in the Salesforce reports, check the numbers, send them up to the dashboard.</p>
     </div>
     <div class="mast-actions">
-      <a class="btn ghost" href="index.html">Back to the dashboard</a>
+      <a class="btn" href="index.html">&larr; Back to the dashboard</a>
       <a class="btn ghost hidden" id="pwLink" href="passwords.html">Change passwords</a>
       <a class="hidden" id="signOut" href="#" style="font-size:15px">Sign out</a>
     </div>
@@ -104,6 +104,25 @@
         <div class="log hidden" id="log" style="margin-top:14px"></div>
       </li>
     </ol>
+  </section>
+
+  <section id="recommend">
+    <h2>Recommend a change</h2>
+    <p class="lede">Spot a number that looks off, a report that needs a new filter, or something the dashboard should show? Send it to Cody. This opens your email with everything filled in, you just hit Send.</p>
+    <div class="card">
+      <form id="recForm" autocomplete="on">
+        <div class="row">
+          <label class="field" style="flex:1;min-width:200px">Your name <input type="text" id="recName" required></label>
+          <label class="field" style="flex:2;min-width:260px">Which report is this about? <select id="recReport" required></select></label>
+        </div>
+        <label class="field" style="margin-top:12px">What should change?
+          <textarea id="recText" rows="5" maxlength="1500" required placeholder="Example: The Detroit pantry on 10/8 shows 43 lbs, but the sign-in sheet says 430."></textarea>
+        </label>
+        <p class="notes" style="margin:6px 0 12px">Please leave out client addresses, phone numbers and case details. A name or date is enough for Cody to find it.</p>
+        <button type="submit" class="gold">Send recommendation</button>
+        <span class="notes" id="recMsg" style="margin-left:10px"></span>
+      </form>
+    </div>
   </section>
 </main>
 

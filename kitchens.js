@@ -77,6 +77,28 @@
     document.querySelectorAll('#repList .ck').forEach(function (el) { el.innerHTML = reports[el.dataset.slot] ? '&#10003; loaded' : ''; });
   }
 
+  // ---------- recommend a change (opens the user's email, addressed to Cody) ----------
+  $('recReport').innerHTML = '<option value="">Pick one</option>' +
+    (CFG.reports || []).map(function (r) { return '<option>' + esc(r.name) + '</option>'; }).join('') +
+    '<option>The dashboard itself (layout, a chart, a number)</option><option>The Kitchens (this update page)</option><option>Something else</option>';
+  try { $('recName').value = localStorage.getItem('cspn.recName') || ''; } catch (e) {}
+  $('recForm').onsubmit = function (e) {
+    e.preventDefault();
+    var name = $('recName').value.trim(), rep = $('recReport').value, text = $('recText').value.trim();
+    if (!name || !rep || !text) { $('recMsg').textContent = 'Fill in all three boxes first.'; return; }
+    try { localStorage.setItem('cspn.recName', name); } catch (x) {}
+    var subject = 'Program Numbers change request: ' + rep;
+    var body = 'Report: ' + rep + '\n' +
+      'From: ' + name + '\n' +
+      'Sent: ' + new Date().toLocaleString('en-US') + '\n\n' +
+      'Recommended change:\n' + text + '\n\n' +
+      '(Sent from the Kitchens on the Community Support Program Numbers dashboard)';
+    var to = [].concat(CFG.recommendTo || []).join(',');
+    location.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    $('recMsg').textContent = 'Your email should be open with it ready to go. Hit Send there.';
+    $('recText').value = '';
+  };
+
   // ---------- slots ----------
   function drawSlots() {
     $('slots').innerHTML = GreatHall.SLOTS.map(function (s) {
