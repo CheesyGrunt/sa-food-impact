@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Great Hall | Soldiers' Angels Food Programs</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f2326'/%3E%3Cpath d='M18 4 9 18h6l-2 10 10-15h-6z' fill='%23a8824a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<header class="mast">
+  <div class="wrap">
+    <div>
+      <div class="kicker">Soldiers' Angels &middot; Food Programs &middot; <span id="yr">2026</span></div>
+      <h1>The Great Hall</h1>
+      <p class="sub">Military &amp; Veteran Food Distributions and Food Pantries, all in one place.</p>
+    </div>
+    <div class="stamp">Last updated<br><b id="updated">...</b></div>
+  </div>
+  <hr class="rule">
+</header>
+
+<main class="wrap">
+
+  <section>
+    <h2>The feast so far</h2>
+    <p class="lede">Every client who came through an MVFD or a pantry this year, how often they came, and how much food went out the door.</p>
+    <div class="grid g4" id="kpis"></div>
+  </section>
+
+  <section>
+    <div class="grid g2">
+      <div class="card">
+        <h2>Who came to the table</h2>
+        <p class="lede">Unique clients by program. "Both" means they attended at least one MVFD and one pantry.</p>
+        <div class="stack" id="overlapBar"></div>
+        <div class="legend" id="overlapLegend" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
+        <h2>How often they came</h2>
+        <p class="lede">Total visits per client, MVFD and pantry combined.</p>
+        <div id="freq"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Month by month</h2>
+      <p class="lede">Attendance per month. Hover or tap a bar for pounds and value.</p>
+      <div class="legend"><span><i style="background:var(--mvfd)"></i>MVFD visits</span><span><i style="background:var(--pantry)"></i>Pantry visits</span></div>
+      <div id="monthChart"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>By site</h2>
+    <p class="lede">Sessions, attendance, unique clients, and food out the door at each site.</p>
+    <div class="card tablewrap"><table id="siteTable"></table></div>
+  </section>
+
+  <section>
+    <h2>Service sessions</h2>
+    <p class="lede">Every session with how many attended. <span class="pill pending">pending</span> means Salesforce has attendance but no pounds/value on the value report yet.</p>
+    <div class="controls">
+      <div class="seg" id="sessProg"><button data-v="all" class="on">All</button><button data-v="mvfd">MVFD</button><button data-v="pantry">Pantry</button></div>
+      <select id="sessSite"><option value="">All sites</option></select>
+      <select id="sessStatus"><option value="">Any status</option><option value="reported">Reported</option><option value="pending">Pending</option><option value="zero">$0 / 0 lbs</option></select>
+    </div>
+    <div class="card tablewrap scroll"><table id="sessTable"></table></div>
+  </section>
+
+  <section>
+    <div class="grid g2">
+      <div class="card">
+        <h2>Households</h2>
+        <p class="lede" id="hhLede">From the MVFD Stats report, one household per client (latest record).</p>
+        <div id="hh"></div>
+      </div>
+      <div class="card">
+        <h2>Client status</h2>
+        <p class="lede">Most recent status on file for each unique client.</p>
+        <div id="status"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="grid g2">
+      <div class="card">
+        <h2>Ethnicity</h2>
+        <div id="eth"></div>
+      </div>
+      <div class="card">
+        <h2>Race</h2>
+        <div id="race"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Community Support</h2>
+    <p class="lede" id="csLede">Numbers reported by hand each month by site coordinators and reps.</p>
+    <div class="grid g4" id="csKpis"></div>
+    <div class="card tablewrap" style="margin-top:16px"><table id="csTable"></table></div>
+  </section>
+
+  <section id="roster">
+    <h2>Client roster</h2>
+    <p class="lede">Names stay sealed. The roster is encrypted and only opens in your browser with the staff passphrase.</p>
+    <div class="card vault" id="vault">
+      <div class="seal">SA</div>
+      <div><strong style="font-family:Cinzel,serif;letter-spacing:.06em">I solemnly swear I'm here on official business.</strong></div>
+      <form id="unlockForm" autocomplete="off">
+        <input type="password" id="pass" placeholder="Staff passphrase" aria-label="Staff passphrase">
+        <button type="submit">Unseal</button>
+      </form>
+      <div class="msg" id="unlockMsg"></div>
+    </div>
+    <div class="hidden" id="rosterBody">
+      <div class="controls">
+        <input type="search" id="rSearch" placeholder="Search a name" style="flex:1;min-width:180px">
+        <div class="seg" id="rProg"><button data-v="all" class="on">All</button><button data-v="both">Both</button><button data-v="mvfd">MVFD only</button><button data-v="pantry">Pantry only</button></div>
+        <select id="rSite"><option value="">All sites</option></select>
+        <button class="ghost" id="rCsv">Download CSV</button>
+        <button class="ghost" id="rLock">Lock</button>
+      </div>
+      <div class="card tablewrap"><table id="rTable"></table></div>
+      <p class="notes" id="rCount"></p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Data notes</h2>
+    <div class="card"><ul class="notes" id="quality"></ul><p class="notes" id="sources"></p></div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span><svg class="bolt" viewBox="0 0 10 16"><path d="M6 0 0 9h4l-1 7 7-10H6z" fill="#a8824a"/></svg>Built for Soldiers' Angels by Cody Mackall. Mischief managed.</span>
+    <a href="kitchens.html">The Kitchens (update data)</a>
+  </div>
+</footer>
+
+<div class="tip" id="tip"></div>
+<script src="config.js"></script>
+<script src="assets/processor.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
