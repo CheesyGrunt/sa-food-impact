@@ -152,3 +152,57 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 .tablewrap.scroll { max-height: 560px; overflow-y: auto; padding-top: 0; }
 .tablewrap.scroll thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
 .tablewrap.scroll tfoot td { position: sticky; bottom: 0; background: #fff; }
+
+/* ---------- v2: header button, gate, clickable tiles, modal, centered tables, bolt ---------- */
+.mast-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.mast-actions .btn { font-size: 12px; padding: 9px 14px; }
+@media (max-width: 640px) { .mast-actions { align-items: flex-start; } .stamp { text-align: left; } }
+
+.gate { min-height: calc(100vh - 220px); display: grid; place-items: center; padding: 40px 0; }
+.gate .card { max-width: 440px; width: 100%; text-align: center; padding: 34px 26px; }
+.gate h2 { margin-bottom: 6px; }
+.gate form { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.gate input { width: 100%; text-align: center; }
+
+.clickable { cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.clickable:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(31,35,38,.08), 0 10px 22px rgba(31,35,38,.08); }
+.clickable:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.kpi .more { position: absolute; top: 16px; right: 16px; font-family: 'Cinzel', serif; font-size: 10px; letter-spacing: .14em; color: var(--gold-deep); text-transform: uppercase; }
+.hbar.clickable { border-radius: 6px; padding: 5px 6px; margin: 0 -6px; }
+.hbar.clickable:hover { background: var(--gold-soft); transform: none; box-shadow: none; }
+.hbar.clickable span:first-child { text-decoration: underline; text-decoration-color: var(--hair); text-underline-offset: 3px; }
+.legend .clickable:hover { color: var(--ink); transform: none; box-shadow: none; }
+
+.modal-bg { position: fixed; inset: 0; background: rgba(31,35,38,.45); z-index: 60; display: flex; align-items: flex-start; justify-content: center; padding: 5vh 16px; overflow-y: auto; }
+.modal { background: var(--paper); border-radius: 12px; width: 100%; max-width: 1060px; box-shadow: 0 20px 60px rgba(0,0,0,.25); border: 1px solid var(--hair); }
+.modal header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 22px 8px; }
+.modal header h2 { margin: 0; }
+.modal .body { padding: 0 22px 22px; }
+.modal .x { background: transparent; color: var(--ink); border: 1px solid var(--hair); padding: 6px 12px; }
+.modal .tablewrap { max-height: 60vh; overflow: auto; }
+.modal thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
+
+table.center th, table.center td { text-align: center; }
+table.center td:first-child, table.center th:first-child { text-align: left; }
+table.center tbody tr:nth-child(even) { background: #fcfbf8; }
+table.center td.num, table.center th.num { text-align: center; }
+
+.chart-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+
+footer .wrap { flex-direction: column; justify-content: center; text-align: center; gap: 10px; }
+.sig { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.sig svg { width: 26px; height: 46px; filter: drop-shadow(0 1px 1px rgba(125,95,49,.35)); }
+.sig .line { font-family: 'Cinzel', serif; letter-spacing: .14em; font-size: 12px; text-transform: uppercase; color: var(--gold-deep); }
+.stack .clickable:hover { transform: none; box-shadow: none; filter: brightness(1.12); }
+.tablewrap.scroll { padding-bottom: 0; }
+.tablewrap.scroll tfoot td { box-shadow: 0 -1px 0 var(--hair); }
+.modal { max-width: 1240px; }
+.modal table { font-size: 15px; }
+.modal th, .modal td { padding: 8px 7px; }
+.modal td.mono { font-size: 13.5px; }
+#csTable td:first-child { min-width: 170px; }
+#csTable td.mono, #csTable th { font-size: 13px; padding-left: 6px; padding-right: 6px; }
+.replist { list-style: none; padding: 0; margin: 0; columns: 2; column-gap: 28px; }
+.replist li { padding: 6px 0; border-bottom: 1px solid var(--gray-light); break-inside: avoid; display: flex; justify-content: space-between; gap: 10px; font-size: 16px; }
+.replist .ck { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ok); white-space: nowrap; }
+@media (max-width: 720px) { .replist { columns: 1; } }

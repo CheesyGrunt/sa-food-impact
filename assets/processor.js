@@ -68,7 +68,8 @@
     var t = table(rows, ['full name', 'total food value', 'critical assistance', 'month']);
     var H = t.headers.map(low).join('|');
     if (H.indexOf('critical assistance') !== -1) return 'community';
-    if (H.indexOf('total # household females') !== -1 || H.indexOf('program engagement') !== -1) return 'stats';
+    if (f.indexOf('stats') !== -1 && H.indexOf('full name') !== -1) return f.indexOf('pantry') !== -1 ? 'pantryStats' : 'stats';
+    if (H.indexOf('total # household females') !== -1 || H.indexOf('program engagement') !== -1) return f.indexOf('pantry') !== -1 ? 'pantryStats' : 'stats';
     if (H.indexOf('total food value') !== -1 || H.indexOf('pounds of food') !== -1) return f.indexOf('pantry') !== -1 ? 'pantryValue' : 'mvfdValue';
     if (H.indexOf('full name') !== -1 && H.indexOf('service delivery') !== -1) {
       if (f.indexOf('pantry') !== -1) return 'pantryAttended';
@@ -84,7 +85,8 @@
     { key: 'mvfdValue',      label: 'MVFD Value Pounds',         hint: '2026 - MVFD Value Pounds' },
     { key: 'pantryAttended', label: 'Pantry Attended Clients',   hint: '2026 Pantry Attended Clients' },
     { key: 'mvfdAttended',   label: 'MVFD Attended Clients',     hint: '2026 MVFD Attended Clients' },
-    { key: 'stats',          label: 'MVFD Stats',                hint: '2026 - MVFD Stats' },
+    { key: 'stats',          label: 'MVFD Stats',                hint: '2026- MVFD Stats' },
+    { key: 'pantryStats',    label: 'Pantry Client Stats',       hint: '2026 Pantry Attended Client Stats' },
     { key: 'community',      label: 'Community Support',         hint: '2026 Community Support' },
     { key: 'inKind',         label: 'In-Kind (optional)',        hint: 'Any report with an in-kind value column' }
   ];
@@ -107,7 +109,7 @@
 
     function sessionFor(program, site, date) {
       var k = program + '|' + site + '|' + date;
-      if (!sessions[k]) sessions[k] = { program: program, site: site, date: date, attendees: 0, pounds: null, value: null, valueRows: 0 };
+      if (!sessions[k]) sessions[k] = { program: program, site: site, date: date, attendees: 0, newClients: 0, pounds: null, value: null, valueRows: 0 };
       return sessions[k];
     }
 
@@ -119,6 +121,7 @@
       var cDel = col(t.headers, ['service delivery name', 'service delivery']);
       var cSite = col(t.headers, ['service: service name', 'service name', 'site']);
       var cHH = col(t.headers, ['total # household'], ['females', 'males', 'aged', 'military', 'veterans']);
+      var cEmail = col(t.headers, ['email']);
       var seen = {};
       var used = 0;
       t.rows.forEach(function (row) {
@@ -132,11 +135,14 @@
         var sk = k + '|' + program + '|' + site + '|' + date;
         if (seen[sk]) { dupes++; return; }
         seen[sk] = 1; used++;
-        var c = clients[k] || (clients[k] = { names: {}, status: null, statusDate: '', sites: {}, mvfd: 0, pantry: 0, first: date, last: date, hh: null });
+        var here = program + '|' + site + '|' + date;
+        var c = clients[k] || (clients[k] = { names: {}, emails: {}, status: null, statusDate: '', sites: {}, mvfd: 0, pantry: 0, first: date, firstSess: here, last: date, hh: null });
         c.names[name] = (c.names[name] || 0) + 1;
+        var em = cEmail >= 0 ? clean(row[cEmail]).toLowerCase() : '';
+        if (em && em.indexOf('@') > 0) c.emails[em] = 1;
         c[program]++;
         c.sites[site] = 1;
-        if (date < c.first) c.first = date;
+        if (date < c.first) { c.first = date; c.firstSess = here; }
         if (date > c.last) c.last = date;
         var st = cStatus >= 0 ? clean(row[cStatus]) : '';
         if (st && date >= c.statusDate) { c.status = st; c.statusDate = date; }
@@ -230,7 +236,8 @@
       var st = c.status || 'Not listed';
       status[st] = (status[st] || 0) + 1;
       var display = Object.keys(c.names).sort(function (a, b) { return c.names[b] - c.names[a]; })[0];
-      roster.push({ n: display, st: c.status || '', s: Object.keys(c.sites).sort(), m: c.mvfd, p: c.pantry, f: c.first, l: c.last, h: c.hh });
+      if (sessions[c.firstSess]) sessions[c.firstSess].newClients++;
+      roster.push({ n: display, e: Object.keys(c.emails).join('; '), st: c.status || '', s: Object.keys(c.sites).sort(), m: c.mvfd, p: c.pantry, f: c.first, fp: c.firstSess.split('|')[0], fs: c.firstSess.split('|')[1], l: c.last, h: c.hh });
     });
     roster.sort(function (a, b) { return (b.m + b.p) - (a.m + a.p) || a.n.localeCompare(b.n); });
 
@@ -248,43 +255,51 @@
 
     // ---- by month ----
     var months = [];
-    for (var mi = 0; mi < 12; mi++) months.push({ month: MONTHS[mi].slice(0, 3), mvfdVisits: 0, pantryVisits: 0, mvfdPounds: 0, pantryPounds: 0, mvfdValue: 0, pantryValue: 0 });
+    for (var mi = 0; mi < 12; mi++) months.push({ month: MONTHS[mi].slice(0, 3), newClients: 0, mvfdVisits: 0, pantryVisits: 0, mvfdPounds: 0, pantryPounds: 0, mvfdValue: 0, pantryValue: 0 });
     sessList.forEach(function (s) {
       var m = months[+s.date.slice(5, 7) - 1];
       m[s.program + 'Visits'] += s.attendees;
+      m.newClients += s.newClients;
       if (s.value != null) { m[s.program + 'Pounds'] += s.pounds; m[s.program + 'Value'] += s.value; }
     });
     var lastMonth = 0;
     months.forEach(function (m, i) { if (m.mvfdVisits || m.pantryVisits) lastMonth = i; ['mvfdPounds','pantryPounds','mvfdValue','pantryValue'].forEach(function (f) { m[f] = round2(m[f]); }); });
     months = months.slice(0, lastMonth + 1);
 
-    // ---- demographics (MVFD Stats: one household per client, latest record in the year) ----
+    // ---- demographics (MVFD Stats + Pantry Client Stats: one household per client, latest record in the year) ----
     var demo = null;
-    var rs = reports.stats;
-    if (!rs) quality.push('Missing report: MVFD Stats (household and demographic breakdown).');
-    else {
-      var t = table(rs.rows, ['full name']);
-      var H = t.headers;
-      var f = {
-        name: col(H, ['full name']), del: col(H, ['service delivery name']),
-        hh: col(H, ['total # household'], ['females', 'males', 'aged', 'military', 'veterans']),
-        female: col(H, ['household+females']), male: col(H, ['household+males'], ['females']),
-        a017: col(H, ['aged 0-17', '0-17']), a1859: col(H, ['aged 18-59', '18-59']), a60: col(H, ['aged 60', '60+']),
-        active: col(H, ['active military']), guard: col(H, ['guard']), retired: col(H, ['retired']), vets: col(H, ['household veterans', 'veterans']),
-        eth: col(H, ['ethnicity']), race: col(H, ['race']), state: col(H, ['state'])
-      };
+    var statKeys = ['stats', 'pantryStats'].filter(function (k) { return reports[k]; });
+    if (!reports.stats) quality.push('Missing report: MVFD Stats (household and demographic breakdown).');
+    if (!reports.pantryStats) quality.push('Missing report: Pantry Attended Client Stats (pantry household breakdown).');
+    if (statKeys.length) {
       var latest = {};
-      t.rows.forEach(function (row) {
-        var name = clean(row[f.name]); if (!name) return;
-        var date = findDate(row[f.del]);
-        if (!date || !inYear(date)) return;
-        var k = nameKey(name);
-        if (!latest[k] || date >= latest[k].date) latest[k] = { date: date, row: row };
+      statKeys.forEach(function (key) {
+        var rs = reports[key];
+        var t = table(rs.rows, ['full name']);
+        var H = t.headers;
+        var f = {
+          name: col(H, ['full name']), del: col(H, ['service delivery name']),
+          hh: col(H, ['total # household'], ['females', 'males', 'aged', 'military', 'veterans']),
+          female: col(H, ['household+females']), male: col(H, ['household+males'], ['females']),
+          a017: col(H, ['aged 0-17', '0-17']), a1859: col(H, ['aged 18-59', '18-59']), a60: col(H, ['aged 60', '60+']),
+          active: col(H, ['active military']), guard: col(H, ['guard']), retired: col(H, ['retired']), vets: col(H, ['household veterans', 'veterans']),
+          eth: col(H, ['ethnicity']), race: col(H, ['race']), state: col(H, ['state'])
+        };
+        var used = 0;
+        t.rows.forEach(function (row) {
+          var name = clean(row[f.name]); if (!name) return;
+          var date = findDate(row[f.del]);
+          if (!date || !inYear(date)) return;
+          used++;
+          var k = nameKey(name);
+          if (!latest[k] || date >= latest[k].date) latest[k] = { date: date, row: row, f: f };
+        });
+        sources[key] = { file: rs.name, rows: t.rows.length, used: used };
       });
       var D = { households: 0, individuals: 0, female: 0, male: 0, age0_17: 0, age18_59: 0, age60: 0, active: 0, guard: 0, retired: 0, veterans: 0, flagged: 0, ethnicity: {}, race: {}, state: {} };
       var flaggedNames = 0;
       Object.keys(latest).forEach(function (k) {
-        var row = latest[k].row;
+        var row = latest[k].row, f = latest[k].f;
         D.households++;
         var hh = num(row[f.hh]);
         var parts = ['female','male','age0_17','age18_59','age60','active','guard','retired','veterans'];
@@ -296,15 +311,15 @@
           D.individuals += hh;
           parts.forEach(function (p, i) { D[p] += vals[i]; });
         }
-        var e = clean(row[f.eth]) || 'Not listed'; D.ethnicity[e] = (D.ethnicity[e] || 0) + 1;
-        var r = clean(row[f.race]) || 'Not listed'; D.race[r] = (D.race[r] || 0) + 1;
+        var e = (f.eth >= 0 && clean(row[f.eth])) || 'Not listed'; D.ethnicity[e] = (D.ethnicity[e] || 0) + 1;
+        var r = (f.race >= 0 && clean(row[f.race])) || 'Not listed'; D.race[r] = (D.race[r] || 0) + 1;
         if (f.state >= 0) { var s = clean(row[f.state]).toUpperCase() || 'Not listed'; D.state[s] = (D.state[s] || 0) + 1; }
         if (!clients[k]) flaggedNames++;
       });
-      if (D.flagged) quality.push(D.flagged + ' households in MVFD Stats have a blank or impossible household count (over ' + CAP + ' people) and were left out of the people totals. Worth fixing in Salesforce.');
-      if (flaggedNames) quality.push(flaggedNames + ' MVFD Stats clients did not match anyone in the Attended reports (name spelled differently or not on those reports).');
+      if (D.flagged) quality.push(D.flagged + ' households in the Stats reports have a blank or impossible household count (over ' + CAP + ' people) and were left out of the people totals. Worth fixing in Salesforce.');
+      if (flaggedNames) quality.push(flaggedNames + ' Stats report clients did not match anyone in the Attended reports (name spelled differently or not on those reports).');
+      D.sources = statKeys;
       demo = D;
-      sources.stats = { file: rs.name, rows: t.rows.length, households: D.households };
     }
 
     // ---- community support (manual monthly entries) ----
@@ -321,7 +336,7 @@
         if (i === cMonth || l === 'year' || l.indexOf('did you') === 0 || l === 'notes') return;
         var numeric = 0, filled = 0;
         tc.rows.forEach(function (r) { var v = r[i]; if (v !== null && v !== undefined && String(v).trim() !== '') { filled++; if (num(v) !== null) numeric++; } });
-        if (filled && numeric / filled > 0.8) metricCols.push({ i: i, label: clean(h).replace(/^z(?=[A-Z])/, '').replace(/^Critical Assistance - /i, '') });
+        if (filled && numeric / filled > 0.8) metricCols.push({ i: i, label: niceLabel(h) });
       });
       var cTot = {}, cMon = {}, cSite = {};
       metricCols.forEach(function (m) { cTot[m.label] = 0; });
@@ -380,13 +395,21 @@
       status: Object.keys(status).map(function (s) { return { status: s, count: status[s] }; }).sort(function (a, b) { return b.count - a.count; }),
       sites: siteList,
       months: months,
-      sessions: sessList.map(function (s) { return { program: s.program, site: s.site, date: s.date, attendees: s.attendees, pounds: s.pounds, value: s.value, status: s.status }; }),
+      sessions: sessList.map(function (s) { return { program: s.program, site: s.site, date: s.date, attendees: s.attendees, newClients: s.newClients, pounds: s.pounds, value: s.value, status: s.status }; }),
       demographics: demo,
       community: community,
       sources: sources,
       quality: quality
     };
     return { summary: summary, roster: roster };
+  }
+
+  // Friendlier names for the Community Support columns
+  function niceLabel(h) {
+    var l = clean(h).replace(/^z(?=[A-Z])/, '').replace(/^Critical Assistance - /i, '');
+    var map = { 'items distributed': 'Other Items Distributed', 'other transp': 'Other Transportation', 'canteen gift card': 'Canteen Gift Cards' };
+    if (map[l.toLowerCase()]) return map[l.toLowerCase()];
+    return l.split(' ').map(function (w, i) { return (i && /^(and|of|or|the|for)$/i.test(w)) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
   }
 
   function slotLabel(key) { for (var i = 0; i < SLOTS.length; i++) if (SLOTS[i].key === key) return SLOTS[i].label; return key; }

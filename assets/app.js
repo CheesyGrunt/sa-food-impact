@@ -6,104 +6,182 @@
   var pct = function (a, b) { return b ? Math.round(a / b * 100) + '%' : '0%'; };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var PROG = { mvfd: 'MVFD', pantry: 'Pantry' };
-  var S;
+  var KEY = 'cspn.view';
+  var S, R;   // summary, roster
 
   function niceDate(iso) { if (!iso) return '-'; var p = iso.split('-'); return +p[1] + '/' + +p[2] + '/' + p[0]; }
+  function progOf(c) { return c.m && c.p ? 'both' : c.m ? 'mvfd' : 'pantry'; }
+  function store(k, v) { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch (e) {} }
+  function recall(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
 
-  fetch('data/summary.json', { cache: 'no-store' })
-    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(function (s) { S = s; render(); })
-    .catch(function () { $('kpis').innerHTML = '<div class="card empty" style="grid-column:1/-1">No data yet. Head to <a href="kitchens.html">the Kitchens</a> to load this year\'s reports.</div>'; });
+  // ---------- gate ----------
+  var box = null;
+  fetch('data/hall.enc.json', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .catch(function () { return null; })
+    .then(function (b) {
+      box = b;
+      if (!b) { $('gateMsg').innerHTML = 'Nothing has been published yet. An admin needs to run the first update in <a href="kitchens.html">the Kitchens</a>.'; $('gateForm').classList.add('hidden'); return; }
+      var saved = recall(KEY); if (saved) open(saved, true);
+    });
+  $('gateForm').onsubmit = function (e) { e.preventDefault(); var p = $('gatePass').value; if (p && box) open(p); };
+  function open(pass, quiet) {
+    if (!quiet) $('gateMsg').textContent = 'Opening...';
+    GreatHall.unseal(box, pass).then(function (data) {
+      S = data.summary; R = data.roster || [];
+      store(KEY, pass); $('gatePass').value = ''; $('gateMsg').textContent = '';
+      $('gate').classList.add('hidden'); $('dash').classList.remove('hidden'); $('stampBox').classList.remove('hidden');
+      render();
+    }).catch(function () { store(KEY, null); if (!quiet) $('gateMsg').textContent = 'That password did not work.'; });
+  }
+  $('lockNow').onclick = function (e) { e.preventDefault(); store(KEY, null); location.reload(); };
 
+  // ---------- render ----------
   function render() {
     var T = S.totals;
     $('yr').textContent = S.year;
     $('updated').textContent = new Date(S.generatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    var lastM = S.months.length ? S.months[S.months.length - 1] : null;
+    var lastIdx = S.months.length; // 1-based month number of the latest month
 
-    // KPIs
     var k = [
-      ['Unique clients', fmt(T.uniqueClients), fmt(T.mvfdClients) + ' MVFD &middot; ' + fmt(T.pantryClients) + ' pantry', 'feature'],
-      ['Attended both', fmt(T.bothClients), pct(T.bothClients, T.uniqueClients) + ' of all clients', 'feature'],
+      ['Unique clients', fmt(T.uniqueClients), 'Each person counted once, at their first visit', 'feature', function () { list('All unique clients', 'Everyone who attended an MVFD or pantry in ' + S.year + '.', function () { return true; }); }],
+      ['Attended both', fmt(T.bothClients), pct(T.bothClients, T.uniqueClients) + ' of clients came to an MVFD and a pantry', 'feature', function () { list('Attended both', 'At least one MVFD and one pantry.', function (c) { return progOf(c) === 'both'; }); }],
+      ['First-timers in ' + (lastM ? lastM.month : '-'), fmt(lastM ? lastM.newClients : 0), 'New faces this month', '', function () { var mm = ('0' + lastIdx).slice(-2); list('First-timers in ' + lastM.month + ' ' + S.year, 'First visit of the year landed in ' + lastM.month + '.', function (c) { return c.f.slice(5, 7) === mm; }); }],
       ['Total visits', fmt(T.totalVisits), fmt(T.mvfdVisits) + ' MVFD &middot; ' + fmt(T.pantryVisits) + ' pantry'],
       ['Service sessions', fmt(T.mvfdSessions + T.pantrySessions), fmt(T.mvfdSessions) + ' MVFD &middot; ' + fmt(T.pantrySessions) + ' pantry'],
       ['Pounds of food', fmt(T.pounds), fmt(T.mvfdPounds) + ' MVFD &middot; ' + fmt(T.pantryPounds) + ' pantry', 'feature'],
       ['Value of food', money(T.value), money(T.mvfdValue) + ' MVFD &middot; ' + money(T.pantryValue) + ' pantry', 'feature'],
-      T.inKind == null
-        ? ['Value of in-kind', 'Awaiting report', 'Add the in-kind report in the Kitchens', 'pending']
-        : ['Value of in-kind', money(T.inKind), esc(T.inKindSource || '')],
-      ['Sessions pending', fmt(T.pendingSessions), 'attendance in, pounds/value not yet reported']
+      T.inKind == null ? ['Value of in-kind', 'Awaiting report', 'Add the in-kind report in the Kitchens', 'pending'] : ['Value of in-kind', money(T.inKind), esc(T.inKindSource || '')]
     ];
-    $('kpis').innerHTML = k.map(function (x) {
-      return '<div class="card kpi ' + (x[3] || '') + '"><div class="label">' + x[0] + '</div><div class="value">' + x[1] + '</div><div class="note">' + x[2] + '</div></div>';
+    $('kpis').innerHTML = k.map(function (x, i) {
+      var click = x[4] ? ' clickable" role="button" tabindex="0" data-k="' + i : '';
+      return '<div class="card kpi ' + (x[3] || '') + click + '">' + (x[4] ? '<span class="more">View list</span>' : '') + '<div class="label">' + x[0] + '</div><div class="value">' + x[1] + '</div><div class="note">' + x[2] + '</div></div>';
     }).join('');
+    bindClicks($('kpis'), function (el) { k[+el.dataset.k][4](); });
 
     // overlap
     var o = S.overlap, tot = o.both + o.mvfdOnly + o.pantryOnly;
-    var parts = [['MVFD only', o.mvfdOnly, 'var(--mvfd)'], ['Both', o.both, 'var(--both)'], ['Pantry only', o.pantryOnly, 'var(--pantry)']];
-    $('overlapBar').innerHTML = parts.map(function (p) { return '<div style="flex:' + p[1] + ';background:' + p[2] + '" title="' + p[0] + ': ' + fmt(p[1]) + '">' + (p[1] / tot > .09 ? fmt(p[1]) : '') + '</div>'; }).join('');
-    $('overlapLegend').innerHTML = parts.map(function (p) { return '<span><i style="background:' + p[2] + '"></i>' + p[0] + ' <b class="mono">' + fmt(p[1]) + '</b> (' + pct(p[1], tot) + ')</span>'; }).join('');
+    var parts = [['MVFD only', o.mvfdOnly, 'var(--mvfd)', 'mvfd'], ['Both', o.both, 'var(--both)', 'both'], ['Pantry only', o.pantryOnly, 'var(--pantry)', 'pantry']];
+    $('overlapBar').innerHTML = parts.map(function (p) { return '<div class="clickable" data-p="' + p[3] + '" style="flex:' + p[1] + ';background:' + p[2] + '" title="' + p[0] + ': ' + fmt(p[1]) + '">' + (p[1] / tot > .09 ? fmt(p[1]) : '') + '</div>'; }).join('');
+    $('overlapLegend').innerHTML = parts.map(function (p) { return '<span class="clickable" role="button" tabindex="0" data-p="' + p[3] + '"><i style="background:' + p[2] + '"></i>' + p[0] + ' <b class="mono">' + fmt(p[1]) + '</b> (' + pct(p[1], tot) + ')</span>'; }).join('');
+    var overlapList = function (el) { var p = el.dataset.p, lab = { mvfd: 'MVFD only', both: 'Attended both', pantry: 'Pantry only' }[p]; list(lab, 'Clients in the "' + lab + '" group.', function (c) { return progOf(c) === p; }); };
+    bindClicks($('overlapBar'), overlapList); bindClicks($('overlapLegend'), overlapList);
 
-    // frequency + status
-    $('freq').innerHTML = hbars(S.frequency.map(function (f) { return [f.bucket, f.count]; }), true);
-    $('status').innerHTML = hbars(S.status.map(function (f) { return [f.status, f.count]; }));
+    // frequency (every bucket clickable)
+    var ranges = { '1 visit': [1, 1], '2-3 visits': [2, 3], '4-6 visits': [4, 6], '7-9 visits': [7, 9], '10+ visits': [10, 1e9] };
+    $('freq').innerHTML = hbars(S.frequency.map(function (f) { return [f.bucket, f.count]; }), true, true);
+    bindClicks($('freq'), function (el) {
+      var b = el.dataset.v, r = ranges[b] || [0, 1e9];
+      list('Clients with ' + b, 'Repeat attendance across MVFDs and pantries, most visits first.', function (c) { var t = c.m + c.p; return t >= r[0] && t <= r[1]; }, 'visits');
+    });
 
-    monthChart();
-    siteTable();
-    sessions();
-    households();
-    community();
-    notes();
+    monthChart(); siteTable(); sessions(); households(); statusPanel(); community(); notes();
   }
 
-  function hbars(rows, gold) {
+  function bindClicks(root, fn) {
+    root.querySelectorAll('.clickable').forEach(function (el) {
+      el.onclick = function () { fn(el); };
+      el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(el); } };
+    });
+  }
+
+  function hbars(rows, gold, clickable) {
     var max = Math.max.apply(null, rows.map(function (r) { return r[1]; }).concat([1]));
     var sum = rows.reduce(function (a, r) { return a + r[1]; }, 0);
     return rows.map(function (r) {
-      return '<div class="hbar"><span>' + esc(r[0]) + '</span><div class="track"><div class="fill' + (gold ? ' gold' : '') + '" style="width:' + (r[1] / max * 100) + '%"></div></div><span class="n">' + fmt(r[1]) + ' <span style="color:var(--gray)">' + pct(r[1], sum) + '</span></span></div>';
-    }).join('');
+      var c = clickable ? ' clickable" role="button" tabindex="0" data-v="' + esc(r[0]) : '';
+      return '<div class="hbar' + c + '"><span>' + esc(r[0]) + '</span><div class="track"><div class="fill' + (gold ? ' gold' : '') + '" style="width:' + (r[1] / max * 100) + '%"></div></div><span class="n">' + fmt(r[1]) + ' <span style="color:var(--gray)">' + pct(r[1], sum) + '</span></span></div>';
+    }).join('') || '<p class="empty">No data.</p>';
   }
 
-  // ---- month chart (grouped bars, SVG) ----
+  // ---------- client list modal ----------
+  function list(title, sub, pred, sort) {
+    var rows = R.filter(pred);
+    rows.sort(sort === 'visits' ? function (a, b) { return (b.m + b.p) - (a.m + a.p) || a.n.localeCompare(b.n); } : function (a, b) { return a.n.localeCompare(b.n); });
+    var bg = document.createElement('div'); bg.className = 'modal-bg';
+    bg.innerHTML = '<div class="modal" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><header><div><div class="kicker">Client list</div><h2>' + esc(title) + '</h2><p class="lede" style="margin:4px 0 0">' + esc(sub) + '</p></div><button class="x" aria-label="Close">Close</button></header>' +
+      '<div class="body"><div class="controls"><input type="search" placeholder="Search name or email" style="flex:1;min-width:200px"><select class="ms"><option value="">All sites</option></select><button class="ghost csv">Download CSV</button></div>' +
+      '<div class="card tablewrap" style="padding:0 6px"><table class="center"></table></div><p class="notes cnt"></p></div></div>';
+    document.body.appendChild(bg);
+    document.body.style.overflow = 'hidden';
+    var q = '', site = '';
+    var sites = {}; rows.forEach(function (c) { c.s.forEach(function (s) { sites[s] = 1; }); });
+    bg.querySelector('.ms').innerHTML += Object.keys(sites).sort().map(function (s) { return '<option>' + esc(s) + '</option>'; }).join('');
+    function cur() { return rows.filter(function (c) { return (!site || c.s.indexOf(site) !== -1) && (!q || c.n.toLowerCase().indexOf(q) !== -1 || (c.e || '').indexOf(q) !== -1); }); }
+    function draw() {
+      var r = cur(), shown = r.slice(0, 1500);
+      bg.querySelector('table').innerHTML = '<thead><tr><th>Name</th><th>Email</th><th>Program</th><th>Sites</th><th>MVFD</th><th>Pantry</th><th>Total</th><th>First visit</th><th>Last visit</th></tr></thead><tbody>' +
+        shown.map(function (c) {
+          var p = progOf(c), pill = '<span class="pill ' + p + '">' + (p === 'both' ? 'Both' : PROG[p]) + '</span>';
+          return '<tr><td>' + esc(c.n) + '</td><td style="font-size:14px">' + (c.e ? esc(c.e) : '<span style="color:var(--gray)">none on file</span>') + '</td><td>' + pill + '</td><td>' + esc(c.s.join(', ')) + '</td><td class="mono">' + c.m + '</td><td class="mono">' + c.p + '</td><td class="mono"><b>' + (c.m + c.p) + '</b></td><td class="mono">' + niceDate(c.f) + '</td><td class="mono">' + niceDate(c.l) + '</td></tr>';
+        }).join('') + '</tbody>';
+      bg.querySelector('.cnt').textContent = fmt(r.length) + ' clients' + (r.length > 1500 ? ' (showing the first 1,500; search or download the CSV for all)' : '') + '.';
+    }
+    function close() { bg.remove(); document.body.style.overflow = ''; document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    bg.onclick = function (e) { if (e.target === bg) close(); };
+    bg.querySelector('.x').onclick = close;
+    bg.querySelector('input').oninput = function () { q = this.value.toLowerCase().trim(); draw(); };
+    bg.querySelector('.ms').onchange = function () { site = this.value; draw(); };
+    bg.querySelector('.csv').onclick = function () {
+      var qq = function (s) { return '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"'; };
+      var csv = ['Name,Email,Program,Status,Sites,MVFD visits,Pantry visits,Total visits,First visit,Last visit'].concat(cur().map(function (c) {
+        var p = progOf(c); return [qq(c.n), qq(c.e), p === 'both' ? 'Both' : PROG[p], qq(c.st), qq(c.s.join('; ')), c.m, c.p, c.m + c.p, c.f, c.l].join(',');
+      })).join('\r\n');
+      var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = title.replace(/[^\w]+/g, '-').toLowerCase() + '-' + S.year + '.csv'; a.click();
+    };
+    draw();
+    bg.querySelector('input').focus();
+  }
+
+  // ---------- month chart ----------
   function monthChart() {
     var M = S.months; if (!M.length) { $('monthChart').innerHTML = '<p class="empty">No sessions yet.</p>'; return; }
-    var W = 1000, H = 300, pl = 48, pr = 10, pt = 14, pb = 28;
-    var max = Math.max.apply(null, M.map(function (m) { return Math.max(m.mvfdVisits, m.pantryVisits); }));
-    var step = Math.pow(10, Math.floor(Math.log10(max))); var top = Math.ceil(max / step) * step; if (top / step < 4) { step /= 2; top = Math.ceil(max / step) * step; }
+    var W = 1000, H = 320, pl = 56, pr = 24, pt = 18, pb = 34;
+    var max = Math.max.apply(null, M.map(function (m) { return Math.max(m.mvfdVisits, m.pantryVisits, m.newClients); }));
+    var step = Math.pow(10, Math.floor(Math.log10(max || 1))); var top = Math.ceil(max / step) * step; if (top / step < 4) { step /= 2; top = Math.ceil(max / step) * step; }
     var y = function (v) { return pt + (H - pt - pb) * (1 - v / top); };
     var bw = (W - pl - pr) / M.length;
-    var g = '';
-    for (var v = 0; v <= top; v += step) g += '<line class="grid-line" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text x="' + (pl - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + fmt(v) + '</text>';
+    var g = '', pts = [];
+    for (var v = 0; v <= top; v += step) g += '<line class="grid-line" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text x="' + (pl - 10) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + fmt(v) + '</text>';
     M.forEach(function (m, i) {
-      var x0 = pl + i * bw, w = Math.min(28, bw * .32), gap = 3, cx = x0 + bw / 2;
-      var tip = esc(m.month + ' ' + S.year) + '|MVFD: ' + fmt(m.mvfdVisits) + ' visits, ' + fmt(m.mvfdPounds) + ' lbs, ' + money(m.mvfdValue) + '|Pantry: ' + fmt(m.pantryVisits) + ' visits, ' + fmt(m.pantryPounds) + ' lbs, ' + money(m.pantryValue);
+      var x0 = pl + i * bw, w = Math.min(30, bw * .3), gap = 4, cx = x0 + bw / 2;
+      var tip = esc(m.month + ' ' + S.year) + '|First-time clients: ' + fmt(m.newClients) + '|MVFD: ' + fmt(m.mvfdVisits) + ' visits, ' + fmt(m.mvfdPounds) + ' lbs, ' + money(m.mvfdValue) + '|Pantry: ' + fmt(m.pantryVisits) + ' visits, ' + fmt(m.pantryPounds) + ' lbs, ' + money(m.pantryValue);
       g += '<g data-tip="' + tip + '"><rect x="' + x0 + '" y="' + pt + '" width="' + bw + '" height="' + (H - pt - pb) + '" fill="transparent"/>';
       g += '<rect x="' + (cx - w - gap / 2) + '" y="' + y(m.mvfdVisits) + '" width="' + w + '" height="' + (y(0) - y(m.mvfdVisits)) + '" rx="3" fill="var(--mvfd)"/>';
       g += '<rect x="' + (cx + gap / 2) + '" y="' + y(m.pantryVisits) + '" width="' + w + '" height="' + (y(0) - y(m.pantryVisits)) + '" rx="3" fill="var(--pantry)"/></g>';
-      g += '<text x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle">' + m.month + '</text>';
+      g += '<text x="' + cx + '" y="' + (H - 10) + '" text-anchor="middle">' + m.month + '</text>';
+      pts.push([cx, y(m.newClients)]);
     });
-    $('monthChart').innerHTML = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Visits by month">' + g + '</svg>';
-    wireTips($('monthChart'));
-  }
-  function wireTips(el) {
-    var tip = $('tip');
-    el.querySelectorAll('[data-tip]').forEach(function (n) {
-      function show(e) { var p = e.touches ? e.touches[0] : e; tip.innerHTML = n.getAttribute('data-tip').split('|').map(function (l, i) { return i ? l : '<b>' + l + '</b>'; }).join('<br>'); tip.style.opacity = 1; tip.style.left = Math.min(p.clientX + 14, innerWidth - 270) + 'px'; tip.style.top = (p.clientY + 14) + 'px'; }
+    g += '<polyline points="' + pts.map(function (p) { return p.join(','); }).join(' ') + '" fill="none" stroke="var(--gold-deep)" stroke-width="2.5" stroke-linejoin="round" pointer-events="none"/>';
+    g += pts.map(function (p) { return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="#fff" stroke="var(--gold-deep)" stroke-width="2.5" pointer-events="none"/>'; }).join('');
+    $('monthChart').innerHTML = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Visits and first-time clients by month">' + g + '</svg>';
+    var tipEl = $('tip');
+    $('monthChart').querySelectorAll('[data-tip]').forEach(function (n) {
+      function show(e) { var p = e.touches ? e.touches[0] : e; tipEl.innerHTML = n.getAttribute('data-tip').split('|').map(function (l, i) { return i ? l : '<b>' + l + '</b>'; }).join('<br>'); tipEl.style.opacity = 1; tipEl.style.left = Math.min(p.clientX + 14, innerWidth - 270) + 'px'; tipEl.style.top = (p.clientY + 14) + 'px'; }
       n.addEventListener('mousemove', show); n.addEventListener('touchstart', show, { passive: true });
-      n.addEventListener('mouseleave', function () { tip.style.opacity = 0; });
+      n.addEventListener('mouseleave', function () { tipEl.style.opacity = 0; });
     });
   }
 
+  // ---------- by site (alphabetical, centered) ----------
   function siteTable() {
-    var R = S.sites, t = { ms: 0, ps: 0, mv: 0, pv: 0, c: 0, lb: 0, v: 0 };
-    var body = R.map(function (r) {
+    var R2 = S.sites.slice().sort(function (a, b) { return a.site.localeCompare(b.site); });
+    var t = { ms: 0, ps: 0, mv: 0, pv: 0, lb: 0, v: 0 };
+    var body = R2.map(function (r) {
       t.ms += r.mvfdSessions; t.ps += r.pantrySessions; t.mv += r.mvfdVisits; t.pv += r.pantryVisits; t.lb += r.pounds; t.v += r.value;
-      return '<tr><td>' + esc(r.site) + '</td><td class="num mono">' + fmt(r.mvfdSessions) + '</td><td class="num mono">' + fmt(r.pantrySessions) + '</td><td class="num mono">' + fmt(r.mvfdVisits) + '</td><td class="num mono">' + fmt(r.pantryVisits) + '</td><td class="num mono">' + fmt(r.clients) + '</td><td class="num mono">' + fmt(r.pounds) + '</td><td class="num mono">' + money(r.value) + '</td></tr>';
+      return '<tr><td><a href="#" class="siteLink" data-s="' + esc(r.site) + '">' + esc(r.site) + '</a></td><td class="mono">' + fmt(r.mvfdSessions) + '</td><td class="mono">' + fmt(r.pantrySessions) + '</td><td class="mono">' + fmt(r.mvfdVisits) + '</td><td class="mono">' + fmt(r.pantryVisits) + '</td><td class="mono">' + fmt(r.clients) + '</td><td class="mono">' + fmt(r.pounds) + '</td><td class="mono">' + money(r.value) + '</td></tr>';
     }).join('');
-    $('siteTable').innerHTML = '<thead><tr><th>Site</th><th class="num">MVFD sessions</th><th class="num">Pantry sessions</th><th class="num">MVFD visits</th><th class="num">Pantry visits</th><th class="num">Unique clients</th><th class="num">Pounds</th><th class="num">Food value</th></tr></thead><tbody>' + body +
-      '</tbody><tfoot><tr><td>All sites</td><td class="num mono">' + fmt(t.ms) + '</td><td class="num mono">' + fmt(t.ps) + '</td><td class="num mono">' + fmt(t.mv) + '</td><td class="num mono">' + fmt(t.pv) + '</td><td class="num mono">' + fmt(S.totals.uniqueClients) + '</td><td class="num mono">' + fmt(t.lb) + '</td><td class="num mono">' + money(t.v) + '</td></tr></tfoot>';
+    $('siteTable').innerHTML = '<thead><tr><th>Site</th><th>MVFD<br>sessions</th><th>Pantry<br>sessions</th><th>MVFD<br>visits</th><th>Pantry<br>visits</th><th>Unique<br>clients</th><th>Pounds</th><th>Food<br>value</th></tr></thead><tbody>' + body +
+      '</tbody><tfoot><tr><td>All sites</td><td class="mono">' + fmt(t.ms) + '</td><td class="mono">' + fmt(t.ps) + '</td><td class="mono">' + fmt(t.mv) + '</td><td class="mono">' + fmt(t.pv) + '</td><td class="mono">' + fmt(S.totals.uniqueClients) + '</td><td class="mono">' + fmt(t.lb) + '</td><td class="mono">' + money(t.v) + '</td></tr></tfoot>';
+    $('siteTable').querySelectorAll('.siteLink').forEach(function (a) {
+      a.onclick = function (e) { e.preventDefault(); var s = a.dataset.s; list(s + ' clients', 'Everyone who attended an MVFD or pantry at ' + s + '.', function (c) { return c.s.indexOf(s) !== -1; }, 'visits'); };
+    });
   }
 
-  // ---- sessions ----
+  // ---------- sessions (centered, scrolling) ----------
   var sf = { prog: 'all', site: '', status: '' };
   function sessions() {
     var sites = S.sites.map(function (s) { return s.site; }).sort();
@@ -115,32 +193,52 @@
   }
   function drawSessions() {
     var rows = S.sessions.filter(function (s) { return (sf.prog === 'all' || s.program === sf.prog) && (!sf.site || s.site === sf.site) && (!sf.status || s.status === sf.status); });
-    var t = { a: 0, lb: 0, v: 0 };
-    var body = rows.map(function (s) {
-      t.a += s.attendees; t.lb += s.pounds || 0; t.v += s.value || 0;
-      var tag = s.status === 'pending' ? '<span class="pill pending">pending</span>' : s.status === 'zero' ? '<span class="pill zero">$0 / 0 lbs</span>' : '';
-      return '<tr><td class="mono">' + niceDate(s.date) + '</td><td><span class="pill ' + s.program + '">' + PROG[s.program] + '</span></td><td>' + esc(s.site) + '</td><td class="num mono">' + fmt(s.attendees) + '</td><td class="num mono">' + (s.pounds == null ? '' : fmt(s.pounds)) + '</td><td class="num mono">' + (s.value == null ? '' : money(s.value)) + '</td><td>' + tag + '</td></tr>';
+    var t = { a: 0, n: 0, lb: 0, v: 0 };
+    var body = rows.map(function (s, i) {
+      t.a += s.attendees; t.n += s.newClients || 0; t.lb += s.pounds || 0; t.v += s.value || 0;
+      var tag = s.status === 'pending' ? '<span class="pill pending">pending</span>' : s.status === 'zero' ? '<span class="pill zero">$0 / 0 lbs</span>' : '<span class="pill">reported</span>';
+      var nc = s.newClients ? '<a href="#" class="newLink" data-i="' + i + '">' + fmt(s.newClients) + '</a>' : '0';
+      return '<tr><td class="mono">' + niceDate(s.date) + '</td><td><span class="pill ' + s.program + '">' + PROG[s.program] + '</span></td><td>' + esc(s.site) + '</td><td class="mono">' + fmt(s.attendees) + '</td><td class="mono">' + nc + '</td><td class="mono">' + (s.pounds == null ? '-' : fmt(s.pounds)) + '</td><td class="mono">' + (s.value == null ? '-' : money(s.value)) + '</td><td>' + tag + '</td></tr>';
     }).join('');
-    $('sessTable').innerHTML = '<thead><tr><th>Date</th><th>Program</th><th>Site</th><th class="num">Attended</th><th class="num">Pounds</th><th class="num">Food value</th><th></th></tr></thead><tbody>' + (body || '<tr><td colspan="7" class="empty">Nothing matches.</td></tr>') +
-      '</tbody><tfoot><tr><td colspan="3">' + fmt(rows.length) + ' sessions</td><td class="num mono">' + fmt(t.a) + '</td><td class="num mono">' + fmt(t.lb) + '</td><td class="num mono">' + money(t.v) + '</td><td></td></tr></tfoot>';
+    $('sessTable').innerHTML = '<thead><tr><th>Date</th><th>Program</th><th>Site</th><th>Attended</th><th>First-timers</th><th>Pounds</th><th>Food value</th><th>Status</th></tr></thead><tbody>' + (body || '<tr><td colspan="8" class="empty">Nothing matches.</td></tr>') +
+      '</tbody><tfoot><tr><td>' + fmt(rows.length) + ' sessions</td><td></td><td></td><td class="mono">' + fmt(t.a) + '</td><td class="mono">' + fmt(t.n) + '</td><td class="mono">' + fmt(t.lb) + '</td><td class="mono">' + money(t.v) + '</td><td></td></tr></tfoot>';
+    $('sessTable').querySelectorAll('.newLink').forEach(function (a) {
+      a.onclick = function (e) {
+        e.preventDefault(); var s = rows[+a.dataset.i];
+        list('First-timers: ' + PROG[s.program] + ' ' + s.site + ' ' + niceDate(s.date), 'Clients whose first visit of the year was this session.', function (c) { return c.f === s.date && c.fs === s.site && c.fp === s.program; });
+      };
+    });
   }
   function seg(id, cb) {
     var el = $(id);
     el.querySelectorAll('button').forEach(function (b) { b.onclick = function () { el.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); }); b.classList.add('on'); cb(b.dataset.v); }; });
   }
 
+  // ---------- client status with site filter ----------
+  function statusPanel() {
+    var sites = {}; R.forEach(function (c) { c.s.forEach(function (s) { sites[s] = 1; }); });
+    $('statusSite').innerHTML = '<option value="">All sites</option>' + Object.keys(sites).sort().map(function (s) { return '<option>' + esc(s) + '</option>'; }).join('');
+    $('statusSite').onchange = drawStatus;
+    drawStatus();
+  }
+  function drawStatus() {
+    var site = $('statusSite').value, counts = {}, n = 0;
+    R.forEach(function (c) { if (site && c.s.indexOf(site) === -1) return; var st = c.st || 'Not listed'; counts[st] = (counts[st] || 0) + 1; n++; });
+    var rows = Object.keys(counts).map(function (k) { return [k, counts[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
+    $('statusLede').textContent = 'Most recent status on file for each unique client' + (site ? ' who attended at ' + site : '') + ' (' + fmt(n) + ' clients).';
+    $('status').innerHTML = hbars(rows);
+  }
+
   function households() {
     var D = S.demographics;
-    if (!D) { $('hh').innerHTML = '<p class="empty">Load the MVFD Stats report to see households.</p>'; $('eth').innerHTML = $('race').innerHTML = '<p class="empty">No data.</p>'; return; }
+    if (!D) { $('hh').innerHTML = '<p class="empty">Load the Stats reports to see households.</p>'; $('eth').innerHTML = $('race').innerHTML = '<p class="empty">No data.</p>'; return; }
     var counted = D.households - D.flagged;
-    $('hhLede').innerHTML = 'From the MVFD Stats report, one household per client (latest record). <b class="mono">' + fmt(D.households) + '</b> households; people totals use the <b class="mono">' + fmt(counted) + '</b> with a clean household count.';
+    $('hhLede').innerHTML = 'From the ' + (D.sources && D.sources.length > 1 ? 'MVFD Stats and Pantry Client Stats reports' : D.sources && D.sources[0] === 'pantryStats' ? 'Pantry Client Stats report' : 'MVFD Stats report') + ', one household per client (latest record). <b class="mono">' + fmt(D.households) + '</b> households; people totals use the <b class="mono">' + fmt(counted) + '</b> with a clean household count.';
     $('hh').innerHTML =
       '<div class="grid g2" style="margin-bottom:14px"><div><div class="kicker">People in those homes</div><div class="mono" style="font-size:28px;font-weight:600">' + fmt(D.individuals) + '</div></div>' +
       '<div><div class="kicker">Avg household</div><div class="mono" style="font-size:28px;font-weight:600">' + (counted ? (D.individuals / counted).toFixed(1) : '-') + '</div></div></div>' +
-      hbars([['Children 0-17', D.age0_17], ['Adults 18-59', D.age18_59], ['Seniors 60+', D.age60]], true) +
-      '<div style="height:10px"></div>' +
-      hbars([['Female', D.female], ['Male', D.male]]) +
-      '<div style="height:10px"></div>' +
+      hbars([['Children 0-17', D.age0_17], ['Adults 18-59', D.age18_59], ['Seniors 60+', D.age60]], true) + '<div style="height:10px"></div>' +
+      hbars([['Female', D.female], ['Male', D.male]]) + '<div style="height:10px"></div>' +
       hbars([['Veterans', D.veterans], ['Retired military', D.retired], ['Active duty', D.active], ['Guard/Reserve', D.guard]]);
     var ob = function (o) { return Object.keys(o).map(function (k) { return [k, o[k]]; }).sort(function (a, b) { return b[1] - a[1]; }); };
     $('eth').innerHTML = hbars(ob(D.ethnicity), true);
@@ -152,13 +250,13 @@
     if (!C) { $('csKpis').innerHTML = '<div class="card empty" style="grid-column:1/-1">Load the Community Support report to fill this in.</div>'; return; }
     $('csLede').textContent = 'Numbers reported by hand each month by site coordinators and reps (' + C.entries + ' entries this year).';
     var cols = C.columns.filter(function (c) { return C.totals[c] > 0; });
-    var cap = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
     $('csKpis').innerHTML = cols.slice().sort(function (a, b) { return C.totals[b] - C.totals[a]; }).map(function (c) {
-      return '<div class="card kpi"><div class="label">' + esc(cap(c)) + '</div><div class="value">' + fmt(C.totals[c]) + '</div></div>';
+      return '<div class="card kpi"><div class="label">' + esc(c) + '</div><div class="value">' + fmt(C.totals[c]) + '</div></div>';
     }).join('');
-    $('csTable').innerHTML = '<thead><tr><th>Month</th>' + cols.map(function (c) { return '<th class="num">' + esc(cap(c)) + '</th>'; }).join('') + '</tr></thead><tbody>' +
-      C.byMonth.map(function (m) { return '<tr><td>' + m.month + '</td>' + cols.map(function (c) { return '<td class="num mono">' + fmt(m[c] || 0) + '</td>'; }).join('') + '</tr>'; }).join('') +
-      '</tbody><tfoot><tr><td>Total</td>' + cols.map(function (c) { return '<td class="num mono">' + fmt(C.totals[c]) + '</td>'; }).join('') + '</tr></tfoot>';
+    // categories down the side, months across the top, so it fits without sideways scrolling
+    var order = cols.slice().sort(function (a, b) { return C.totals[b] - C.totals[a]; });
+    $('csTable').innerHTML = '<thead><tr><th>Category</th>' + C.byMonth.map(function (m) { return '<th>' + m.month + '</th>'; }).join('') + '<th>Total</th></tr></thead><tbody>' +
+      order.map(function (c) { return '<tr><td>' + esc(c) + '</td>' + C.byMonth.map(function (m) { return '<td class="mono">' + fmt(m[c] || 0) + '</td>'; }).join('') + '<td class="mono"><b>' + fmt(C.totals[c]) + '</b></td></tr>'; }).join('') + '</tbody>';
   }
 
   function notes() {
@@ -166,50 +264,7 @@
     var src = S.sources, L = [];
     if (src.mvfdValue && src.mvfdValue.lastSession) L.push('MVFD pounds/value run through ' + niceDate(src.mvfdValue.lastSession) + '.');
     if (src.pantryValue && src.pantryValue.lastSession) L.push('Pantry pounds/value run through ' + niceDate(src.pantryValue.lastSession) + '.');
-    L.push('Clients are matched across reports by full name. Household sizes over ' + S.householdCap + ' are treated as entry errors.');
+    L.push('Clients are matched across reports by full name, and counted as a first-timer at the first session they attended this year. Household sizes over ' + S.householdCap + ' are treated as entry errors.');
     $('sources').textContent = L.join(' ');
-  }
-
-  // ---- sealed roster ----
-  var R = null, rf = { q: '', prog: 'all', site: '' };
-  $('unlockForm').onsubmit = function (e) {
-    e.preventDefault();
-    var pass = $('pass').value; if (!pass) return;
-    $('unlockMsg').textContent = 'Unsealing...';
-    fetch('data/roster.enc.json', { cache: 'no-store' })
-      .then(function (r) { if (!r.ok) throw new Error('none'); return r.json(); })
-      .then(function (box) { return GreatHall.unseal(box, pass); })
-      .then(function (list) {
-        R = list; $('pass').value = ''; $('unlockMsg').textContent = '';
-        $('vault').classList.add('hidden'); $('rosterBody').classList.remove('hidden');
-        var sites = {}; R.forEach(function (c) { c.s.forEach(function (s) { sites[s] = 1; }); });
-        $('rSite').innerHTML = '<option value="">All sites</option>' + Object.keys(sites).sort().map(function (s) { return '<option>' + esc(s) + '</option>'; }).join('');
-        drawRoster();
-      })
-      .catch(function (err) { $('unlockMsg').textContent = err.message === 'none' ? 'The roster has not been sealed yet. Run an update in the Kitchens.' : 'That passphrase did not work.'; });
-  };
-  $('rSearch').oninput = function () { rf.q = this.value.toLowerCase().trim(); drawRoster(); };
-  $('rSite').onchange = function () { rf.site = this.value; drawRoster(); };
-  seg('rProg', function (v) { rf.prog = v; drawRoster(); });
-  $('rLock').onclick = function () { R = null; $('rTable').innerHTML = ''; $('rosterBody').classList.add('hidden'); $('vault').classList.remove('hidden'); };
-  $('rCsv').onclick = function () {
-    var rows = filtered(), q = function (s) { return '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"'; };
-    var csv = ['Name,Status,Sites,MVFD visits,Pantry visits,Total visits,First visit,Last visit,Household'].concat(rows.map(function (c) { return [q(c.n), q(c.st), q(c.s.join('; ')), c.m, c.p, c.m + c.p, c.f, c.l, c.h || ''].join(','); })).join('\r\n');
-    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'food-clients-' + S.year + '.csv'; a.click();
-  };
-  function filtered() {
-    return R.filter(function (c) {
-      var p = c.m && c.p ? 'both' : c.m ? 'mvfd' : 'pantry';
-      return (rf.prog === 'all' || rf.prog === p) && (!rf.site || c.s.indexOf(rf.site) !== -1) && (!rf.q || c.n.toLowerCase().indexOf(rf.q) !== -1);
-    });
-  }
-  function drawRoster() {
-    var rows = filtered(), shown = rows.slice(0, 500);
-    $('rTable').innerHTML = '<thead><tr><th>Name</th><th>Program</th><th>Sites</th><th>Status</th><th class="num">MVFD</th><th class="num">Pantry</th><th class="num">Total</th><th>Last visit</th></tr></thead><tbody>' +
-      shown.map(function (c) {
-        var p = c.m && c.p ? '<span class="pill both">Both</span>' : c.m ? '<span class="pill mvfd">MVFD</span>' : '<span class="pill pantry">Pantry</span>';
-        return '<tr><td>' + esc(c.n) + '</td><td>' + p + '</td><td>' + esc(c.s.join(', ')) + '</td><td>' + esc(c.st) + '</td><td class="num mono">' + c.m + '</td><td class="num mono">' + c.p + '</td><td class="num mono"><b>' + (c.m + c.p) + '</b></td><td class="mono">' + niceDate(c.l) + '</td></tr>';
-      }).join('') + '</tbody>';
-    $('rCount').textContent = fmt(rows.length) + ' clients match' + (rows.length > 500 ? ' (showing the first 500; search or download the CSV for the rest)' : '') + '.';
   }
 })();

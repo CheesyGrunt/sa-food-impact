@@ -2,12 +2,62 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var CFG = window.GREAT_HALL_CONFIG || {};
+  var A = window.HallAdmin;
   var fmt = function (n) { return n == null ? '-' : Math.round(n).toLocaleString('en-US'); };
   var money = function (n) { return n == null ? '-' : '$' + Math.round(n).toLocaleString('en-US'); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
-  var reports = {};
-  var result = null;
-  var VAULT = 'greatHall.tokenVault';
+  var reports = {}, result = null;
+  var admin = null, viewer = null, setupMode = false;
+
+  // ---------- gate ----------
+  var keysBox = null;
+  A.getJSON(A.PATHS.keys).then(function (k) {
+    keysBox = k;
+    if (!k) {
+      setupMode = true;
+      $('gateTitle').textContent = 'First-time setup';
+      $('gateSub').textContent = 'Pick two passwords: one for you (admin) and one for staff who view the dashboard. They go live with your first publish.';
+      $('gateForm').classList.add('hidden'); $('setupForm').classList.remove('hidden');
+    } else { $('adminPass').focus(); }
+  });
+  $('gateForm').onsubmit = function (e) {
+    e.preventDefault();
+    var p = $('adminPass').value; if (!p || !keysBox) return;
+    $('gateMsg').textContent = 'Checking...';
+    GreatHall.unseal(keysBox, p).then(function (k) { admin = p; viewer = k.viewer; enter(); })
+      .catch(function () { $('gateMsg').textContent = 'That is not the admin password.'; });
+  };
+  $('setupForm').onsubmit = function (e) {
+    e.preventDefault();
+    try {
+      admin = A.checkPair($('sa1').value, $('sa2').value, 'admin password');
+      viewer = A.checkPair($('sv1').value, $('sv2').value, 'viewer password');
+      if (admin === viewer) throw new Error('Make the admin and viewer passwords different.');
+    } catch (err) { $('gateMsg').textContent = err.message; return; }
+    enter();
+  };
+  function enter() {
+    $('gate').classList.add('hidden'); $('work').classList.remove('hidden');
+    if (!setupMode) $('pwLink').classList.remove('hidden');
+    if (A.loadVault()) $('vaultNote').innerHTML = 'A token is saved on this computer. Leave the token box empty and it unlocks with the admin password. <a href="#" id="forget">Forget it</a>';
+    drawSlots();
+  }
+  document.addEventListener('click', function (e) { if (e.target.id === 'forget') { e.preventDefault(); A.forgetVault(); $('vaultNote').textContent = 'Saved token removed.'; } });
+
+  // ---------- Salesforce report links ----------
+  var LINKS = (CFG.reports || []).filter(function (r) { return r.url; });
+  $('repList').innerHTML = LINKS.map(function (r) {
+    return '<li><a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.name) + '</a><span class="ck" data-slot="' + esc(r.slot) + '"></span></li>';
+  }).join('');
+  $('openAll').onclick = function () {
+    var opened = 0;
+    LINKS.forEach(function (r) { var w = window.open(r.url, '_blank'); if (w) { try { w.opener = null; } catch (e) {} opened++; } });
+    // a blocked tab comes back null, so flag the pop-up tip if any were stopped
+    $('popNote').classList.toggle('warn', opened < LINKS.length);
+  };
+  function markLinks() {
+    document.querySelectorAll('#repList .ck').forEach(function (el) { el.innerHTML = reports[el.dataset.slot] ? '&#10003; loaded' : ''; });
+  }
 
   // ---------- slots ----------
   function drawSlots() {
@@ -20,10 +70,9 @@
     $('slots').querySelectorAll('input[type=file]').forEach(function (inp) {
       inp.onchange = function () { if (this.files[0]) readFile(this.files[0], this.dataset.slot); };
     });
-    var need = ['pantryAttended', 'mvfdAttended'].every(function (k) { return reports[k]; });
-    $('run').disabled = !need;
+    $('run').disabled = !(reports.pantryAttended && reports.mvfdAttended);
+    markLinks();
   }
-
   function readFile(file, forced) {
     return new Promise(function (resolve) {
       var fr = new FileReader();
@@ -41,7 +90,6 @@
     });
   }
   function readMany(files) { return Array.prototype.reduce.call(files, function (p, f) { return p.then(function () { return readFile(f); }); }, Promise.resolve()); }
-
   var drop = $('drop');
   drop.onclick = function () { $('multi').click(); };
   drop.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('multi').click(); } };
@@ -53,9 +101,9 @@
   // ---------- process ----------
   $('run').onclick = function () {
     result = GreatHall.build(reports, { year: CFG.year, householdCap: CFG.householdCap, inKindManual: $('inKindManual').value });
-    var T = result.summary.totals;
+    var T = result.summary.totals, M = result.summary.months, last = M[M.length - 1];
     var tiles = [
-      ['Unique clients', fmt(T.uniqueClients)], ['Attended both', fmt(T.bothClients)], ['Total visits', fmt(T.totalVisits)], ['Sessions', fmt(T.mvfdSessions + T.pantrySessions)],
+      ['Unique clients', fmt(T.uniqueClients)], ['Attended both', fmt(T.bothClients)], ['First-timers in ' + (last ? last.month : '-'), fmt(last ? last.newClients : 0)], ['Total visits', fmt(T.totalVisits)],
       ['Pounds', fmt(T.pounds)], ['Food value', money(T.value)], ['In-kind', T.inKind == null ? 'none yet' : money(T.inKind)], ['Pending sessions', fmt(T.pendingSessions)]
     ];
     $('preview').innerHTML = '<div class="grid g4">' + tiles.map(function (t) { return '<div class="card kpi"><div class="label">' + t[0] + '</div><div class="value" style="font-size:22px">' + t[1] + '</div></div>'; }).join('') + '</div>' +
@@ -64,107 +112,40 @@
     $('publish').disabled = false; $('download').disabled = false;
   };
 
-  // ---------- passphrase checks ----------
-  function passphrase() {
-    var a = $('p1').value, b = $('p2').value;
-    if (!a) throw new Error('Enter the staff passphrase.');
-    if (a.length < 8) throw new Error('Use at least 8 characters for the passphrase.');
-    if (a !== b) throw new Error('The two passphrases do not match.');
-    return a;
-  }
-  // Make sure the passphrase matches the roster already live, so nobody gets locked out by a typo
-  function checkExisting(pass) {
-    if ($('changing').checked) return Promise.resolve();
-    return fetch('data/roster.enc.json', { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (box) {
-        if (!box) return;
-        return GreatHall.unseal(box, pass).catch(function () { throw new Error('That passphrase does not open the roster that is live now. Fix the typo, or tick "I\'m changing the passphrase on purpose".'); });
-      });
-  }
-
-  function files(pass) {
-    return GreatHall.seal(result.roster, pass).then(function (box) {
-      return { 'data/summary.json': JSON.stringify(result.summary, null, 1), 'data/roster.enc.json': JSON.stringify(box) };
+  function files() {
+    return Promise.all([
+      GreatHall.seal({ summary: result.summary, roster: result.roster }, viewer),
+      GreatHall.seal({ viewer: viewer, v: 1 }, admin)
+    ]).then(function (b) {
+      var f = {}; f[A.PATHS.hall] = JSON.stringify(b[0]); f[A.PATHS.keys] = JSON.stringify(b[1]); return f;
     });
   }
 
-  // ---------- download ----------
   $('download').onclick = function () {
-    var pass; try { pass = passphrase(); } catch (e) { return log(e.message, 'warn'); }
-    checkExisting(pass).then(function () { return files(pass); }).then(function (f) {
-      Object.keys(f).forEach(function (p) {
-        var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([f[p]], { type: 'application/json' })); a.download = p.split('/').pop(); document.body.appendChild(a); a.click(); a.remove();
-      });
-      log('Downloaded summary.json and roster.enc.json.\nIn GitHub: open the data folder > Add file > Upload files > drop both > Commit changes.', 'ok');
+    files().then(function (f) {
+      A.download(f);
+      log('Downloaded hall.enc.json and keys.enc.json.\nIn GitHub: open the data folder > Add file > Upload files > drop both > Commit changes.\nIf data/summary.json or data/roster.enc.json are still there, delete them.', 'ok');
     }).catch(function (e) { log(e.message, 'warn'); });
   };
 
-  // ---------- GitHub publish ----------
   var gh = CFG.github || {};
   $('repo').value = (gh.owner && gh.repo) ? gh.owner + '/' + gh.repo : '';
   $('branch').value = gh.branch || 'main';
-  var vault = null; try { vault = JSON.parse(localStorage.getItem(VAULT) || 'null'); } catch (e) {}
-  if (vault) $('vaultNote').innerHTML = 'A token is saved on this computer. Leave the token box empty and it unlocks with your passphrase. <a href="#" id="forget">Forget it</a>';
-  document.addEventListener('click', function (e) { if (e.target.id === 'forget') { e.preventDefault(); try { localStorage.removeItem(VAULT); } catch (x) {} vault = null; $('vaultNote').textContent = 'Saved token removed.'; } });
-
-  function b64utf8(str) {
-    var bytes = new TextEncoder().encode(str), bin = '';
-    for (var i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-    return btoa(bin);
-  }
-  function api(token, url, opts) {
-    opts = opts || {};
-    opts.headers = { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
-    return fetch('https://api.github.com' + url, opts);
-  }
-  function putFile(token, repo, branch, path, content, message) {
-    return api(token, '/repos/' + repo + '/contents/' + path + '?ref=' + encodeURIComponent(branch))
-      .then(function (r) { return r.status === 404 ? null : r.ok ? r.json() : r.json().then(function (j) { throw new Error(path + ': ' + (j.message || r.status)); }); })
-      .then(function (existing) {
-        var body = { message: message, content: b64utf8(content), branch: branch };
-        if (existing && existing.sha) body.sha = existing.sha;
-        return api(token, '/repos/' + repo + '/contents/' + path, { method: 'PUT', body: JSON.stringify(body) });
-      })
-      .then(function (r) { if (!r.ok) return r.json().then(function (j) { throw new Error(path + ': ' + (j.message || r.status)); }); });
-  }
-
   $('publish').onclick = function () {
-    var pass; try { pass = passphrase(); } catch (e) { return log(e.message, 'warn'); }
     var repo = $('repo').value.trim(), branch = $('branch').value.trim() || 'main';
     if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return log('Repo should look like owner/repo.', 'warn');
     $('publish').disabled = true;
-    var token = $('token').value.trim();
-    log('Checking the passphrase...');
-    checkExisting(pass)
+    var token;
+    A.resolveToken($('token').value.trim(), admin, $('remember').checked)
+      .then(function (t) { token = t; log('Locking everything with the viewer password...'); return files(); })
+      .then(function (f) { return A.publish(token, repo, branch, f, 'Program numbers update ' + new Date().toLocaleDateString('en-US'), log); })
       .then(function () {
-        if (token) return token;
-        if (!vault) throw new Error('Paste a GitHub token (see README for how to make one).');
-        return GreatHall.unseal(vault, pass).then(function (v) { return v.token; }).catch(function () { throw new Error('The saved token did not unlock with that passphrase. Paste the token again.'); });
+        $('token').value = ''; setupMode = false; $('pwLink').classList.remove('hidden');
+        log('Published. Render redeploys in about a minute, then refresh the dashboard.\nMischief managed.', 'ok');
       })
-      .then(function (tok) {
-        token = tok;
-        if ($('remember').checked && $('token').value.trim()) {
-          return GreatHall.seal({ token: token }, pass).then(function (box) { try { localStorage.setItem(VAULT, JSON.stringify(box)); vault = box; } catch (e) {} });
-        }
-      })
-      .then(function () { log('Sealing the roster...'); return files(pass); })
-      .then(function (f) {
-        var stamp = new Date().toLocaleDateString('en-US');
-        var paths = Object.keys(f);
-        return paths.reduce(function (p, path) {
-          return p.then(function () { log('Sending ' + path + '...'); return putFile(token, repo, branch, path, f[path], 'Great Hall data update ' + stamp); });
-        }, Promise.resolve());
-      })
-      .then(function () { $('token').value = ''; log('Published. Render will redeploy in about a minute. Refresh the Great Hall after that.\nMischief managed.', 'ok'); })
       .catch(function (e) { log(e.message, 'warn'); })
       .then(function () { $('publish').disabled = false; });
   };
 
-  function log(msg, cls) {
-    var el = $('log'); el.classList.remove('hidden');
-    el.innerHTML = '<span class="' + (cls || '') + '">' + esc(msg) + '</span>';
-  }
-
-  drawSlots();
+  function log(msg, cls) { var el = $('log'); el.classList.remove('hidden'); el.innerHTML = '<span class="' + (cls || '') + '">' + esc(msg) + '</span>'; }
 })();

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Optional command-line build (the Kitchens page does the same thing in the browser).
  * Usage:  npm install xlsx  &&  node scripts/build.js path/to/reports/*.xls*
- * Writes data/summary.json. Set ROSTER_PASSPHRASE to also write data/roster.enc.json.
+ * Set VIEWER_PASSWORD and ADMIN_PASSWORD to write data/hall.enc.json + data/keys.enc.json.
  */
 const fs = require('fs');
 const path = require('path');
@@ -25,12 +25,12 @@ const cfg = (() => { const src = fs.readFileSync(path.join(__dirname, '..', 'con
   const out = GH.build(reports, { year: cfg.year, householdCap: cfg.householdCap });
   const dir = path.join(__dirname, '..', 'data');
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, 'summary.json'), JSON.stringify(out.summary, null, 1));
-  console.log('\nWrote data/summary.json');
-  if (process.env.ROSTER_PASSPHRASE) {
-    const box = await GH.seal(out.roster, process.env.ROSTER_PASSPHRASE);
-    fs.writeFileSync(path.join(dir, 'roster.enc.json'), JSON.stringify(box));
-    console.log('Wrote data/roster.enc.json (sealed,', out.roster.length, 'clients)');
+  const V = process.env.VIEWER_PASSWORD, A = process.env.ADMIN_PASSWORD;
+  if (!V || !A) { console.error('\nSet VIEWER_PASSWORD and ADMIN_PASSWORD to write the locked data files.'); }
+  else {
+    fs.writeFileSync(path.join(dir, 'hall.enc.json'), JSON.stringify(await GH.seal({ summary: out.summary, roster: out.roster }, V)));
+    fs.writeFileSync(path.join(dir, 'keys.enc.json'), JSON.stringify(await GH.seal({ viewer: V, v: 1 }, A)));
+    console.log('\nWrote data/hall.enc.json and data/keys.enc.json (' + out.roster.length + ' clients)');
   }
   console.log('\nTotals:', out.summary.totals);
   console.log('\nNotes:\n - ' + out.summary.quality.join('\n - '));

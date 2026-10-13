@@ -3,27 +3,65 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Kitchens | Update The Great Hall</title>
-<meta name="robots" content="noindex">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f2326'/%3E%3Cpath d='M18 4 9 18h6l-2 10 10-15h-6z' fill='%23a8824a'/%3E%3C/svg%3E">
+<title>The Kitchens | Update Community Support Program Numbers</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f2326'/%3E%3Cpath d='M19 3 9 17h6l-4 12 12-16h-6z' fill='%23a8824a'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
 <header class="mast">
   <div class="wrap">
     <div>
-      <div class="kicker">Beneath the Great Hall</div>
+      <div class="kicker">Admin &middot; Community Support Program Numbers</div>
       <h1>The Kitchens</h1>
-      <p class="sub">Drop in the Salesforce reports, check the numbers, send it up to the Hall.</p>
+      <p class="sub">Drop in the Salesforce reports, check the numbers, send them up to the dashboard.</p>
     </div>
-    <div class="stamp"><a href="index.html">Back to the Great Hall</a></div>
+    <div class="mast-actions">
+      <a class="btn ghost" href="index.html">Back to the dashboard</a>
+      <a class="btn ghost hidden" id="pwLink" href="passwords.html">Change passwords</a>
+    </div>
   </div>
   <hr class="rule">
 </header>
 
-<main class="wrap">
+<!-- admin gate -->
+<main class="wrap gate" id="gate">
+  <div class="card">
+    <div class="seal">SA</div>
+    <h2 id="gateTitle">Password?</h2>
+    <p class="lede" style="margin:0" id="gateSub">The Kitchens are admin only.</p>
+    <form id="gateForm" autocomplete="off">
+      <input type="password" id="adminPass" placeholder="Admin password" aria-label="Admin password">
+      <button type="submit">Come in</button>
+    </form>
+    <!-- first-time setup -->
+    <form id="setupForm" class="hidden" autocomplete="off" style="text-align:left">
+      <label class="field">New admin password (for the Kitchens)<input type="password" id="sa1" autocomplete="new-password"></label>
+      <label class="field">Admin password again<input type="password" id="sa2" autocomplete="new-password"></label>
+      <label class="field" style="margin-top:8px">New viewer password (for staff to see the dashboard)<input type="password" id="sv1" autocomplete="new-password"></label>
+      <label class="field">Viewer password again<input type="password" id="sv2" autocomplete="new-password"></label>
+      <button type="submit" style="margin-top:6px">Set passwords</button>
+    </form>
+    <div class="msg" id="gateMsg"></div>
+  </div>
+</main>
+
+<main class="wrap hidden" id="work">
   <section>
     <ol class="steps">
+      <li>
+        <h3>Pull the reports from Salesforce</h3>
+        <p class="lede" style="margin-bottom:12px">Open each report, click the dropdown next to Edit, and choose <b>Export</b> &gt; <b>Details Only</b> &gt; <b>Excel</b>.</p>
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+            <b style="font-family:Cinzel,serif;letter-spacing:.06em">Salesforce reports</b>
+            <button class="gold" id="openAll" type="button">Open all reports</button>
+          </div>
+          <ul class="replist" id="repList"></ul>
+          <p class="notes" id="popNote" style="margin:6px 0 0">First time only: if Chrome only opens one tab, click the blocked pop-up icon at the right end of the address bar, pick <b>Always allow pop-ups</b>, and click the button again.</p>
+        </div>
+      </li>
+
       <li>
         <h3>Bring in the reports</h3>
         <p class="lede" style="margin-bottom:12px">Drop all of them at once. Each one sorts itself into its slot by name and column headers. Nothing leaves this computer until you publish, and raw reports are never uploaded.</p>
@@ -46,25 +84,15 @@
       </li>
 
       <li>
-        <h3>Seal the roster</h3>
-        <p class="lede" style="margin-bottom:12px">Client names are encrypted with the staff passphrase before anything is published. Use the same passphrase every update or staff will lose access.</p>
-        <div class="row">
-          <label class="field">Staff passphrase <input type="password" id="p1" autocomplete="new-password"></label>
-          <label class="field">Type it again <input type="password" id="p2" autocomplete="new-password"></label>
-        </div>
-        <label style="font-size:15px;display:block;margin-top:8px"><input type="checkbox" id="changing"> I'm changing the passphrase on purpose</label>
-      </li>
-
-      <li>
         <h3>Send it up</h3>
-        <p class="lede" style="margin-bottom:12px">Publish straight to GitHub (Render redeploys on its own in about a minute), or download the two files and upload them to the <span class="mono">data</span> folder yourself.</p>
+        <p class="lede" style="margin-bottom:12px">Everything is locked with the viewer password before it leaves this page. Publish straight to GitHub (Render redeploys in about a minute), or download the files and upload them to the <span class="mono">data</span> folder yourself.</p>
         <div class="card">
           <div class="row">
             <label class="field">Repo <input type="text" id="repo" placeholder="owner/repo"></label>
             <label class="field">Branch <input type="text" id="branch" style="width:110px"></label>
             <label class="field" style="flex:1;min-width:220px">GitHub token <input type="password" id="token" placeholder="github_pat_..." autocomplete="off"></label>
           </div>
-          <label style="font-size:15px;display:block;margin-top:8px"><input type="checkbox" id="remember" checked> Remember the token on this computer (locked with your staff passphrase)</label>
+          <label style="font-size:15px;display:block;margin-top:8px"><input type="checkbox" id="remember" checked> Remember the token on this computer (locked with the admin password)</label>
           <div id="vaultNote" class="notes"></div>
           <div class="row" style="margin-top:14px">
             <button class="gold" id="publish" disabled>Publish to GitHub</button>
@@ -79,14 +107,18 @@
 
 <footer>
   <div class="wrap">
-    <span><svg class="bolt" viewBox="0 0 10 16"><path d="M6 0 0 9h4l-1 7 7-10H6z" fill="#a8824a"/></svg>The house-elves thank you. Mischief managed.</span>
-    <a href="index.html">The Great Hall</a>
+    <div class="sig">
+      <svg viewBox="0 0 26 46" aria-hidden="true"><path d="M17 0 3 21h8L5 46l18-28h-9L22 0z" fill="#a8824a"/></svg>
+      <span class="line">The house-elves thank you</span>
+    </div>
+    <span>Built for Soldiers' Angels by Cody Mackall</span>
   </div>
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="assets/processor.js"></script>
+<script src="assets/github.js"></script>
 <script src="assets/kitchens.js"></script>
 </body>
 </html>
