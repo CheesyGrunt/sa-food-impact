@@ -32,7 +32,7 @@
     <h2>Staff only</h2>
     <p class="lede" style="margin:0">I solemnly swear I'm here on official business.</p>
     <form id="gateForm" autocomplete="off">
-      <input type="password" id="gatePass" placeholder="Viewer password" aria-label="Viewer password" autofocus>
+      <div class="pw"><input type="password" id="gatePass" name="cspn-viewer" placeholder="Viewer password" aria-label="Viewer password" autocomplete="new-password" autocapitalize="off" spellcheck="false"><button type="button" class="eye" data-for="gatePass">Show</button></div>
       <button type="submit">Open the numbers</button>
     </form>
     <div class="msg" id="gateMsg"></div>

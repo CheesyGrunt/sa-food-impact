@@ -87,11 +87,11 @@
     var name = $('recName').value.trim(), rep = $('recReport').value, text = $('recText').value.trim();
     if (!name || !rep || !text) { $('recMsg').textContent = 'Fill in all three boxes first.'; return; }
     try { localStorage.setItem('cspn.recName', name); } catch (x) {}
-    var subject = 'Program Numbers change request: ' + rep;
+    var subject = 'Program Numbers ticket: ' + rep;
     var body = 'Report: ' + rep + '\n' +
       'From: ' + name + '\n' +
       'Sent: ' + new Date().toLocaleString('en-US') + '\n\n' +
-      'Recommended change:\n' + text + '\n\n' +
+      'Ticket details:\n' + text + '\n\n' +
       '(Sent from the Kitchens on the Community Support Program Numbers dashboard)';
     var to = [].concat(CFG.recommendTo || []).join(',');
     location.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);

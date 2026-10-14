@@ -32,7 +32,7 @@
     <h2 id="gateTitle">Admin sign in</h2>
     <p class="lede" style="margin:0" id="gateSub">Use the admin password you already set. Nothing gets reset here.</p>
     <form id="gateForm" autocomplete="off">
-      <input type="password" id="adminPass" placeholder="Admin password" aria-label="Admin password">
+      <div class="pw"><input type="password" id="adminPass" name="cspn-admin" placeholder="Admin password" aria-label="Admin password" autocomplete="current-password"><button type="button" class="eye" data-for="adminPass">Show</button></div>
       <label style="font-size:15px;text-align:left"><input type="checkbox" id="keepIn" checked> Keep me signed in on this computer</label>
       <button type="submit">Sign in</button>
     </form>
@@ -107,8 +107,8 @@
   </section>
 
   <section id="recommend">
-    <h2>Recommend a change</h2>
-    <p class="lede">Spot a number that looks off, a report that needs a new filter, or something the dashboard should show? Send it to Cody. This opens your email with everything filled in, you just hit Send.</p>
+    <h2>Did you put in a ticket?</h2>
+    <p class="lede">Spot a number that looks off, a report that needs a new filter, or something the dashboard should show? Put in a ticket and it goes straight to Cody. This opens your email with everything filled in, you just hit Send.</p>
     <div class="card">
       <form id="recForm" autocomplete="on">
         <div class="row">
@@ -119,7 +119,7 @@
           <textarea id="recText" rows="5" maxlength="1500" required placeholder="Example: The Detroit pantry on 10/8 shows 43 lbs, but the sign-in sheet says 430."></textarea>
         </label>
         <p class="notes" style="margin:6px 0 12px">Please leave out client addresses, phone numbers and case details. A name or date is enough for Cody to find it.</p>
-        <button type="submit" class="gold">Send recommendation</button>
+        <button type="submit" class="gold">Submit ticket</button>
         <span class="notes" id="recMsg" style="margin-left:10px"></span>
       </form>
     </div>
@@ -141,5 +141,6 @@
 <script src="assets/processor.js"></script>
 <script src="assets/github.js"></script>
 <script src="assets/kitchens.js"></script>
+<script>document.querySelectorAll('.eye').forEach(function (b) { b.onclick = function () { var i = document.getElementById(b.dataset.for); var s = i.type === 'password'; i.type = s ? 'text' : 'password'; b.textContent = s ? 'Hide' : 'Show'; i.focus(); }; });</script>
 </body>
 </html>

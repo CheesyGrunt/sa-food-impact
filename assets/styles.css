@@ -228,3 +228,7 @@ footer .wrap { flex-direction: column; justify-content: center; text-align: cent
 @media (min-width: 1700px) { #kpis .kpi.pending .value { font-size: 19px; } #kpis .kpi .note { font-size: 14.5px; } }
 textarea { font-family: 'EB Garamond', serif; font-size: 17px; padding: 10px 12px; border: 1px solid var(--hair); border-radius: 8px; background: #fff; color: var(--ink); width: 100%; resize: vertical; }
 textarea:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+.pw { position: relative; display: flex; }
+.pw input { flex: 1; padding-right: 64px; }
+.pw .eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: transparent; color: var(--gold-deep); border: 0; padding: 6px 8px; font-size: 11px; }

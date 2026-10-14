@@ -25,14 +25,32 @@
       var saved = recall(KEY); if (saved) open(saved, true);
     });
   $('gateForm').onsubmit = function (e) { e.preventDefault(); var p = $('gatePass').value; if (p && box) open(p); };
+  wireEye();
+  // clear anything Chrome autofilled into the box before the person types
+  setTimeout(function () { if (document.activeElement !== $('gatePass')) $('gatePass').value = ''; }, 400);
   function open(pass, quiet) {
     if (!quiet) $('gateMsg').textContent = 'Opening...';
     GreatHall.unseal(box, pass).then(function (data) {
       S = data.summary; R = data.roster || [];
       store(KEY, pass); $('gatePass').value = ''; $('gateMsg').textContent = '';
       $('gate').classList.add('hidden'); $('dash').classList.remove('hidden'); $('stampBox').classList.remove('hidden');
-      render();
-    }).catch(function () { store(KEY, null); if (!quiet) $('gateMsg').textContent = 'That password did not work.'; });
+      try { render(); }
+      catch (err) {
+        // the password was right; something on the page broke. Say so instead of blaming the password.
+        console.error(err);
+        var n = document.createElement('div'); n.className = 'card'; n.style.cssText = 'margin-top:20px;border-color:var(--warn)';
+        n.innerHTML = '<b>The password worked, but part of the page hit an error.</b><br><span class="notes">Try Ctrl+Shift+R to reload. If it keeps happening, send Cody this: ' + esc(err && err.message || err) + '</span>';
+        $('dash').insertBefore(n, $('dash').firstChild);
+      }
+    }, function () {
+      store(KEY, null);
+      if (!quiet) $('gateMsg').innerHTML = 'That password did not work. Click Show to see what is in the box. Chrome sometimes fills in a saved password before you type.';
+    });
+  }
+  function wireEye() {
+    document.querySelectorAll('.eye').forEach(function (b) {
+      b.onclick = function () { var i = document.getElementById(b.dataset.for); var show = i.type === 'password'; i.type = show ? 'text' : 'password'; b.textContent = show ? 'Hide' : 'Show'; i.focus(); };
+    });
   }
   $('lockNow').onclick = function (e) { e.preventDefault(); store(KEY, null); location.reload(); };
 
